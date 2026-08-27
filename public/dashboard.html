@@ -363,16 +363,35 @@
 
   async function loadSettings() {
     const res = await apiFetch('/me');
-    if (res.ok) {
-      const data = await res.json();
-      currentUser = data.user;
-      currentSettings = data.settings || { energy: data.energy, max_energy: 150, profit: data.profit, total_hits: data.total_hits };
-      statEnergy.textContent = currentSettings.energy || 0;
-      statEnergyMax.textContent = `/ ${currentSettings.max_energy || 150}`;
-      statProfit.textContent = '$' + (currentSettings.profit || 0).toLocaleString();
-      statHits.textContent = currentSettings.total_hits || 0;
+  if (res.ok) {
+    const data = await res.json();
+    currentUser = data.user;
+    currentSettings = data.settings || { energy: 100, max_energy: 150, profit: 0, total_hits: 0 };
+    statEnergy.textContent = currentSettings.energy || 0;
+    statEnergyMax.textContent = `/ ${currentSettings.max_energy || 150}`;
+    statProfit.textContent = '$' + (currentSettings.profit || 0).toLocaleString();
+    statHits.textContent = currentSettings.total_hits || 0;
+    // ✅ Sync energy from live bars
+    const barsRes = await apiFetch('/bars');
+    if (barsRes.ok) {
+      const bars = await barsRes.json();
+      if (bars.energy) {
+        const liveEnergy = bars.energy.current;
+        const liveMax = bars.energy.maximum;
+        if (liveEnergy !== undefined) {
+          statEnergy.textContent = liveEnergy;
+          statEnergyMax.textContent = `/ ${liveMax || 150}`;
+          // Optionally update database
+          await apiFetch('/settings', {
+            method: 'PUT',
+            body: JSON.stringify({ energy: liveEnergy, max_energy: liveMax })
+          });
+        }
+      }
     }
   }
+}
+  
 
   async function loadRequests() {
     try {
