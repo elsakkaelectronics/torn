@@ -60,7 +60,7 @@ function exec(sql) {
       else resolve();
     });
   });
-}async function(){await  const existingAdmin = get('SELECT id FROM users WHERE torn_id = 0')}
+}async ()=>  const existingAdmin = await  get('SELECT id FROM users WHERE torn_id = 0'
     
     if (!existingAdmin) {
       await run('INSERT INTO users (torn_id, username, role) VALUES (?, ?, ?)', 0, 'admin', 'admin');
