@@ -167,11 +167,12 @@
     return { 'Content-Type': 'application/json' };
   }
 
-  async function apiFetch(endpoint, options = {}) {
-    const res = await fetch(`${API}${endpoint}`, {
-      ...options,
-      headers: { ...getHeaders(), ...(options.headers || {}) }
-    });
+async function apiFetch(endpoint, options = {}) {
+  const res = await fetch(`${API}${endpoint}`, {
+    cache: 'no-store',
+    ...options,
+    headers: { ...getHeaders(), ...(options.headers || {}) }
+  });
     if (res.status === 401) {
       adminToken = null;
       localStorage.removeItem('adminToken');
