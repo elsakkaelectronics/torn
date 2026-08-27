@@ -66,23 +66,8 @@ function exec(sql) {
 async function initDb() {
   try {
     await run('PRAGMA foreign_keys = ON');
+    // ✅ The schema is correctly inside backticks
     const schema = `
-    CREATE TABLE IF NOT EXISTS payment_submissions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  request_id INTEGER NOT NULL,
-  buyer_id INTEGER NOT NULL,
-  transaction_id TEXT,
-  proof_url TEXT,
-  amount INTEGER,
-  message TEXT,
-  status TEXT DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
-  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  verified_by INTEGER,
-  verified_at DATETIME,
-  FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE,
-  FOREIGN KEY (buyer_id) REFERENCES users(id),
-  FOREIGN KEY (verified_by) REFERENCES users(id)
-);
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         torn_id INTEGER UNIQUE,
@@ -158,6 +143,22 @@ async function initDb() {
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (created_by) REFERENCES users(id)
       );
+      CREATE TABLE IF NOT EXISTS payment_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id INTEGER NOT NULL,
+        buyer_id INTEGER NOT NULL,
+        transaction_id TEXT,
+        proof_url TEXT,
+        amount INTEGER,
+        message TEXT,
+        status TEXT DEFAULT 'pending',
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        verified_by INTEGER,
+        verified_at DATETIME,
+        FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE,
+        FOREIGN KEY (buyer_id) REFERENCES users(id),
+        FOREIGN KEY (verified_by) REFERENCES users(id)
+      );
     `;
     await exec(schema);
     console.log('✅ Tables created');
@@ -175,10 +176,9 @@ async function initDb() {
   }
 }
 
-// ─── INITIALISE DATABASE ──────────────────────────────────────────
+// ─── INITIALISE ──────────────────────────────────────────────────
 initDb().catch(console.error);
 
-// ─── CACHE ──────────────────────────────────────────────────────────
 const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
 // ─── UNIVERSAL AUTHENTICATION ─────────────────────────────────────
@@ -207,7 +207,6 @@ async function authenticate(req, res, next) {
 
   req.user = user;
 
-  // Ensure user_settings exists
   const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', user.id);
   if (!settings) {
     await run('INSERT INTO user_settings (user_id) VALUES (?)', user.id);
@@ -329,7 +328,6 @@ app.post('/api/requests', authenticate, async (req, res) => {
   if (!buyer || !price || !total) {
     return res.status(400).json({ error: 'Buyer, price, and total required' });
   }
-  // Blacklist check for buyer
   if (buyer_id) {
     const blacklisted = await get('SELECT * FROM blacklist WHERE torn_id = ?', buyer_id);
     if (blacklisted) {
@@ -351,7 +349,6 @@ app.put('/api/requests/:id/accept', authenticate, async (req, res) => {
   if (reqData.user_id !== req.user.id && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'You can only accept requests from your own account' });
   }
-  // Check if hitter is blacklisted
   const blacklisted = await get('SELECT * FROM blacklist WHERE user_id = ?', req.user.id);
   if (blacklisted) {
     return res.status(403).json({ error: 'You are blacklisted and cannot accept requests' });
@@ -439,22 +436,7 @@ app.delete('/api/requests/:id', authenticate, async (req, res) => {
   await run('DELETE FROM requests WHERE id = ?', req.params.id);
   res.json({ success: true });
 });
-CREATE TABLE IF NOT EXISTS payment_submissions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  request_id INTEGER NOT NULL,
-  buyer_id INTEGER NOT NULL,
-  transaction_id TEXT,
-  proof_url TEXT,
-  amount INTEGER,
-  message TEXT,
-  status TEXT DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
-  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  verified_by INTEGER,
-  verified_at DATETIME,
-  FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE,
-  FOREIGN KEY (buyer_id) REFERENCES users(id),
-  FOREIGN KEY (verified_by) REFERENCES users(id)
-);
+
 // ─── RECEIPTS ──────────────────────────────────────────────────────
 app.get('/api/receipts', authenticate, async (req, res) => {
   let query = `
@@ -541,9 +523,89 @@ app.get('/api/attack-logs', authenticate, async (req, res) => {
   res.json(parsed);
 });
 
-// ─── ADMIN ROUTES ──────────────────────────────────────────────────
+// ─── PAYMENT SUBMISSIONS ──────────────────────────────────────────
+app.post('/api/requests/:id/submit-payment', authenticate, async (req, res) => {
+  const requestId = req.params.id;
+  const { transaction_id, proof_url, amount, message } = req.body;
 
-// Admin Verify (manual receipt)
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', requestId);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+
+  if (reqData.buyer_id !== req.user.torn_id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'You are not the buyer of this request' });
+  }
+  if (reqData.status === 'paid') {
+    return res.status(400).json({ error: 'This request is already marked as paid' });
+  }
+  if (reqData.status !== 'done' && !(reqData.status === 'active' && reqData.remaining === 0)) {
+    return res.status(400).json({ error: 'Complete all hits before submitting payment' });
+  }
+
+  const result = await run(
+    `INSERT INTO payment_submissions (request_id, buyer_id, transaction_id, proof_url, amount, message)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    requestId, req.user.id, transaction_id, proof_url, amount, message
+  );
+  const submission = await get('SELECT * FROM payment_submissions WHERE id = ?', result.lastID);
+  res.json(submission);
+});
+
+app.get('/api/requests/:id/payment-submissions', authenticate, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+
+  if (reqData.hitter_id !== req.user.id && reqData.buyer_id !== req.user.torn_id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+
+  const submissions = await all(
+    'SELECT * FROM payment_submissions WHERE request_id = ? ORDER BY submitted_at DESC',
+    req.params.id
+  );
+  for (const s of submissions) {
+    if (s.verified_by) {
+      const verifier = await get('SELECT username FROM users WHERE id = ?', s.verified_by);
+      s.verified_by_name = verifier ? verifier.username : 'Unknown';
+    }
+  }
+  res.json(submissions);
+});
+
+app.put('/api/payment-submissions/:id/verify', authenticate, async (req, res) => {
+  const { status } = req.body;
+  const submission = await get('SELECT * FROM payment_submissions WHERE id = ?', req.params.id);
+  if (!submission) return res.status(404).json({ error: 'Submission not found' });
+
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', submission.request_id);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+
+  if (reqData.hitter_id !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only the assigned hitter or admin can verify payment' });
+  }
+  if (submission.status !== 'pending') {
+    return res.status(400).json({ error: 'This submission has already been processed' });
+  }
+
+  await run(
+    'UPDATE payment_submissions SET status = ?, verified_by = ?, verified_at = CURRENT_TIMESTAMP WHERE id = ?',
+    status, req.user.id, req.params.id
+  );
+
+  if (status === 'verified') {
+    await run('UPDATE requests SET status = "paid", paid = 1 WHERE id = ?', submission.request_id);
+  }
+
+  const updated = await get('SELECT * FROM payment_submissions WHERE id = ?', req.params.id);
+  res.json(updated);
+});
+
+app.delete('/api/admin/payment-submissions/:id', requireAdmin, async (req, res) => {
+  const result = await run('DELETE FROM payment_submissions WHERE id = ?', req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
+});
+
+// ─── ADMIN ROUTES ──────────────────────────────────────────────────
 app.post('/api/admin/requests/:id/verify', requireAdmin, async (req, res) => {
   const { log_id, message } = req.body;
   const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
@@ -565,7 +627,6 @@ app.post('/api/admin/requests/:id/verify', requireAdmin, async (req, res) => {
   res.json(receipt);
 });
 
-// Blacklist
 app.get('/api/admin/blacklist', requireAdmin, async (req, res) => {
   const rows = await all(`
     SELECT b.*, u.username as created_by_name FROM blacklist b
@@ -599,7 +660,6 @@ app.delete('/api/admin/blacklist/:id', requireAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Dispute resolve
 app.put('/api/admin/requests/:id/resolve', requireAdmin, async (req, res) => {
   const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
   if (!reqData) return res.status(404).json({ error: 'Request not found' });
@@ -609,7 +669,6 @@ app.put('/api/admin/requests/:id/resolve', requireAdmin, async (req, res) => {
   res.json(updated);
 });
 
-// ─── ADMIN EXPORT/IMPORT ───────────────────────────────────────────
 app.get('/api/admin/export', requireAdmin, async (req, res) => {
   const users = await all('SELECT id, username, role, torn_id FROM users');
   const requests = await all('SELECT * FROM requests');
