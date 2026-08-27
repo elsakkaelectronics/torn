@@ -6,7 +6,6 @@
   <title>Requests – Torn Loss Manager</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <style>
-    /* Same styles as dashboard – include all */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
     body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
     .app { max-width: 1400px; width: 100%; }
@@ -74,29 +73,16 @@
     .filter-row label { font-size: 12px; color: #7e8ca3; display: flex; align-items: center; gap: 6px; }
     .filter-row input[type="checkbox"] { accent-color: #d91e36; width: 18px; height: 18px; }
 
-    .auth-container { max-width: 400px; margin: 60px auto; background: #141a24; padding: 30px; border-radius: 16px; border: 1px solid #1f2836; }
-    .auth-container h2 { margin-bottom: 20px; color: #f5c400; }
-    .auth-container .form-group { margin-bottom: 16px; }
-    .auth-container .btn { width: 100%; justify-content: center; }
-    .auth-container .switch { color: #7e8ca3; font-size: 13px; margin-top: 12px; text-align: center; }
-    .auth-container .switch a { color: #d91e36; cursor: pointer; }
+    /* Loading overlay */
+    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0d12; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #f5c400; z-index: 9999; flex-direction: column; gap: 20px; }
+    #loading .spinner { width: 50px; height: 50px; border: 4px solid #1f2836; border-top-color: #d91e36; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-<div class="app" id="app">
-  <div id="authContainer" style="display:none;">
-    <!-- Same auth form as dashboard -->
-    <div class="auth-container">
-      <h2 id="authTitle">Login</h2>
-      <div class="form-group"><label>Username</label><input type="text" id="authUsername" /></div>
-      <div class="form-group"><label>Password</label><input type="password" id="authPassword" /></div>
-      <div class="form-group" id="authTornIdGroup" style="display:none;"><label>Torn ID</label><input type="text" id="authTornId" /></div>
-      <button class="btn btn-primary" id="authSubmitBtn">Login</button>
-      <div class="switch" id="authSwitch">Don't have an account? <a id="authToggle">Register</a></div>
-      <div id="authMessage" style="color:#ef4444; margin-top:12px; text-align:center;"></div>
-    </div>
-  </div>
+<div id="loading"><div class="spinner"></div><span>Loading...</span></div>
 
+<div class="app" id="app">
   <div id="mainApp" style="display:none;">
     <header class="header">
       <div class="logo"><i class="fas fa-skull-crossbones"></i><span>TORN LOSS MANAGER</span></div>
@@ -161,79 +147,100 @@
 </div>
 
 <script>
-  // ─── Same auth and API setup as dashboard ──────────────────────
-  const API = 'http://localhost:3000/api';
-  let token = localStorage.getItem('tornToken');
-  let currentUser = null;
+  // ─── API BASE ──────────────────────────────────────────────────────
+  const API = '/api'; // Use relative path
 
-  function setAuthToken(t) { token = t; if (t) localStorage.setItem('tornToken', t); else localStorage.removeItem('tornToken'); }
-  function getHeaders() { return { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' }; }
+  // ─── STATE ──────────────────────────────────────────────────────────
+  let currentUser = null;
+  let currentSettings = null;
+  let requests = [];
+
+  // ─── DOM REFS ──────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const loading = $('loading');
+  const mainApp = $('mainApp');
+  const userNameDisplay = $('userNameDisplay');
+  const logoutBtn = $('logoutBtn');
+  const buyerName = $('buyerName');
+  const loserId = $('loserId');
+  const pricePerHit = $('pricePerHit');
+  const totalHits = $('totalHits');
+  const addRequestBtn = $('addRequestBtn');
+  const verifyBuyerBtn = $('verifyBuyerBtn');
+  const verifyResult = $('verifyResult');
+  const requestsTableBody = $('requestsTableBody');
+  const showMyRequests = $('showMyRequests');
+  const statusFilter = $('statusFilter');
+  const exportBtn = $('exportBtn');
+  const importBtn = $('importBtn');
+  const fileInput = $('fileInput');
+  const reqTotal = $('reqTotal');
+  const reqOpen = $('reqOpen');
+  const reqActive = $('reqActive');
+  const reqDone = $('reqDone');
+  const reqPaid = $('reqPaid');
+
+  // ─── HELPERS ──────────────────────────────────────────────────────
+  function getHeaders(apiKey) {
+    return { 'Content-Type': 'application/json', 'X-API-Key': apiKey };
+  }
+
   async function apiFetch(endpoint, options = {}) {
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers: { ...getHeaders(), ...(options.headers || {}) } });
-    if (res.status === 401) { setAuthToken(null); showAuth(); throw new Error('Session expired'); }
+    const apiKey = localStorage.getItem('tornApiKey');
+    if (!apiKey) throw new Error('No API key. Please log in on the Dashboard first.');
+    const res = await fetch(`${API}${endpoint}`, {
+      ...options,
+      headers: { ...getHeaders(apiKey), ...(options.headers || {}) }
+    });
+    if (res.status === 401) {
+      localStorage.removeItem('tornApiKey');
+      throw new Error('Invalid API key. Please reconnect on the Dashboard.');
+    }
     return res;
   }
 
-  const $ = id => document.getElementById(id);
-  const authContainer = $('authContainer');
-  const mainApp = $('mainApp');
-  const authTitle = $('authTitle');
-  const authUsername = $('authUsername');
-  const authPassword = $('authPassword');
-  const authTornId = $('authTornId');
-  const authTornIdGroup = $('authTornIdGroup');
-  const authSubmitBtn = $('authSubmitBtn');
-  const authToggle = $('authToggle');
-  const authMessage = $('authMessage');
-  const userNameDisplay = $('userNameDisplay');
-  const logoutBtn = $('logoutBtn');
-
-  let isLogin = true;
-  function showAuth() { authContainer.style.display = 'block'; mainApp.style.display = 'none'; }
-  function showMainApp() { authContainer.style.display = 'none'; mainApp.style.display = 'block'; loadRequests(); }
-
-  authToggle.addEventListener('click', () => {
-    isLogin = !isLogin;
-    authTitle.textContent = isLogin ? 'Login' : 'Register';
-    authSubmitBtn.textContent = isLogin ? 'Login' : 'Register';
-    authToggle.textContent = isLogin ? 'Register' : 'Login';
-    authTornIdGroup.style.display = isLogin ? 'none' : 'block';
-    authMessage.textContent = '';
-  });
-
-  authSubmitBtn.addEventListener('click', async () => {
-    const username = authUsername.value.trim();
-    const password = authPassword.value.trim();
-    const tornId = authTornId.value.trim();
-    if (!username || !password) { authMessage.textContent = 'Username and password required'; return; }
+  // ─── AUTH ──────────────────────────────────────────────────────────
+  async function connect(apiKey) {
     try {
-      const endpoint = isLogin ? '/auth/login' : '/auth/register';
-      const body = isLogin ? { username, password } : { username, password, torn_id: tornId || undefined };
-      const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch(`${API}/me`, { headers: { 'X-API-Key': apiKey } });
+      if (!res.ok) throw new Error('Invalid API key');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Auth failed');
-      setAuthToken(data.token);
       currentUser = data.user;
-      userNameDisplay.textContent = currentUser.username;
-      showMainApp();
-    } catch (e) { authMessage.textContent = 'Error: ' + e.message; }
-  });
+      currentSettings = data.settings || { energy: 100, max_energy: 150, profit: 0, total_hits: 0 };
+      localStorage.setItem('tornApiKey', apiKey);
+      userNameDisplay.textContent = currentUser.username || `User ${currentUser.torn_id}`;
+      await loadRequests();
+    } catch (e) {
+      alert('Failed to connect: ' + e.message + '\nPlease go to the Dashboard to set your API key.');
+    }
+  }
 
-  logoutBtn.addEventListener('click', () => { setAuthToken(null); currentUser = null; showAuth(); });
+  function logout() {
+    localStorage.removeItem('tornApiKey');
+    currentUser = null;
+    currentSettings = null;
+    alert('Logged out. Please go to the Dashboard to reconnect.');
+    window.location.href = 'dashboard.html';
+  }
 
-  // ─── REQUESTS ──────────────────────────────────────────────────
+  // ─── LOAD REQUESTS ──────────────────────────────────────────────
   async function loadRequests() {
-    const res = await apiFetch('/requests');
-    if (res.ok) {
-      const data = await res.json();
-      renderRequests(data);
-      renderStats(data);
+    try {
+      const res = await apiFetch('/requests');
+      if (res.ok) {
+        requests = await res.json();
+        renderRequests(requests);
+        renderStats(requests);
+      }
+    } catch (e) {
+      console.error('Failed to load requests:', e);
+      requestsTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#ef4444;">${e.message}</td></tr>`;
     }
   }
 
   function renderRequests(requests) {
-    const showMine = $('showMyRequests').checked;
-    const status = $('statusFilter').value;
+    const showMine = showMyRequests.checked;
+    const status = statusFilter.value;
     let filtered = requests;
     if (showMine && currentUser) {
       filtered = filtered.filter(r => r.hitter_id === currentUser.id);
@@ -242,7 +249,7 @@
       filtered = filtered.filter(r => r.status === status);
     }
     if (!filtered.length) {
-      $('requestsTableBody').innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#4a5568;">No requests.</td></tr>`;
+      requestsTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#4a5568;">No requests.</td></tr>`;
       return;
     }
     let html = '';
@@ -258,28 +265,29 @@
         <td>${r.hitter_id || '—'}</td>
       </tr>`;
     });
-    $('requestsTableBody').innerHTML = html;
+    requestsTableBody.innerHTML = html;
   }
 
   function renderStats(requests) {
-    $('reqTotal').textContent = requests.length;
-    $('reqOpen').textContent = requests.filter(r => r.status === 'open').length;
-    $('reqActive').textContent = requests.filter(r => r.status === 'active').length;
-    $('reqDone').textContent = requests.filter(r => r.status === 'done').length;
-    $('reqPaid').textContent = requests.filter(r => r.status === 'paid').length;
+    reqTotal.textContent = requests.length;
+    reqOpen.textContent = requests.filter(r => r.status === 'open').length;
+    reqActive.textContent = requests.filter(r => r.status === 'active').length;
+    reqDone.textContent = requests.filter(r => r.status === 'done').length;
+    reqPaid.textContent = requests.filter(r => r.status === 'paid').length;
   }
 
   // ─── VERIFY BUYER ─────────────────────────────────────────────
-  $('verifyBuyerBtn').addEventListener('click', async () => {
-    const input = $('buyerName').value.trim();
-    if (!input) { $('verifyResult').textContent = '❌ Enter a name/ID'; return; }
-    $('verifyResult').textContent = '⏳';
+  async function verifyBuyer() {
+    const input = buyerName.value.trim();
+    if (!input) { verifyResult.textContent = '❌ Enter a name/ID'; return; }
+    verifyResult.textContent = '⏳';
     try {
-      // Use a public Torn API call (we need the user's API key from settings)
-      const settingsRes = await apiFetch('/user/settings');
-      const settings = await settingsRes.json();
-      const apiKey = settings.api_key;
-      if (!apiKey) { $('verifyResult').textContent = '❌ No API key saved'; return; }
+      // Get the user's API key from settings
+      const res = await apiFetch('/me');
+      const data = await res.json();
+      const apiKey = data.settings?.api_key || localStorage.getItem('tornApiKey');
+      if (!apiKey) { verifyResult.textContent = '❌ No API key'; return; }
+
       let userId, userName;
       if (/^\d+$/.test(input)) {
         const r = await fetch(`https://api.torn.com/v2/user/${input}/basic?key=${apiKey}`);
@@ -293,22 +301,22 @@
         if (!d.users || !d.users.length) throw new Error('No users found');
         userId = d.users[0].id; userName = d.users[0].name;
       }
-      $('buyerName').value = userName;
-      $('verifyResult').textContent = `✅ ${userName} (ID: ${userId})`;
-      $('verifyResult').style.color = '#22c55e';
+      buyerName.value = userName;
+      verifyResult.textContent = `✅ ${userName} (ID: ${userId})`;
+      verifyResult.style.color = '#22c55e';
       window._verifiedBuyerId = userId;
     } catch (e) {
-      $('verifyResult').textContent = '❌ ' + e.message;
-      $('verifyResult').style.color = '#ef4444';
+      verifyResult.textContent = '❌ ' + e.message;
+      verifyResult.style.color = '#ef4444';
     }
-  });
+  }
 
   // ─── ADD REQUEST ──────────────────────────────────────────────
-  $('addRequestBtn').addEventListener('click', async () => {
-    const buyer = $('buyerName').value.trim();
-    const loser = $('loserId').value.trim();
-    const price = parseInt($('pricePerHit').value);
-    const total = parseInt($('totalHits').value);
+  async function addRequest() {
+    const buyer = buyerName.value.trim();
+    const loser = loserId.value.trim();
+    const price = parseInt(pricePerHit.value);
+    const total = parseInt(totalHits.value);
     if (!buyer) { alert('Enter a buyer name.'); return; }
     if (price < 1 || total < 1) { alert('Price and total must be >=1.'); return; }
     const buyerId = window._verifiedBuyerId || null;
@@ -318,28 +326,26 @@
         body: JSON.stringify({ buyer, buyer_id: buyerId, loser, price, total })
       });
       if (res.ok) {
-        $('hitFeedback') && ($('hitFeedback').textContent = '✅ Request posted');
-        $('buyerName').value = '';
-        $('loserId').value = '';
-        $('pricePerHit').value = '';
-        $('totalHits').value = '';
-        $('verifyResult').textContent = '';
+        buyerName.value = '';
+        loserId.value = '';
+        pricePerHit.value = '';
+        totalHits.value = '';
+        verifyResult.textContent = '';
         await loadRequests();
       } else {
         const err = await res.json();
         alert('❌ ' + err.error);
       }
-    } catch (e) { alert('❌ ' + e.message); }
-  });
-
-  // ─── FILTERS ──────────────────────────────────────────────────
-  $('showMyRequests').addEventListener('change', loadRequests);
-  $('statusFilter').addEventListener('change', loadRequests);
+    } catch (e) {
+      alert('❌ ' + e.message);
+    }
+  }
 
   // ─── EXPORT / IMPORT ──────────────────────────────────────────
-  $('exportBtn').addEventListener('click', async () => {
-    const res = await apiFetch('/admin/export');
-    if (res.ok) {
+  async function exportData() {
+    try {
+      const res = await apiFetch('/admin/export');
+      if (!res.ok) throw new Error('Export failed');
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -347,13 +353,12 @@
       a.href = url;
       a.download = `torn_backup_${new Date().toISOString().slice(0,10)}.json`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('❌ ' + e.message);
     }
-  });
+  }
 
-  $('importBtn').addEventListener('click', () => $('fileInput').click());
-  $('fileInput').addEventListener('change', async function(e) {
-    if (!this.files.length) return;
-    const file = this.files[0];
+  function importData(file) {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
@@ -367,24 +372,33 @@
       } catch (e) { alert('❌ ' + e.message); }
     };
     reader.readAsText(file);
-    this.value = '';
+  }
+
+  // ─── EVENT LISTENERS ──────────────────────────────────────────
+  logoutBtn.addEventListener('click', logout);
+  verifyBuyerBtn.addEventListener('click', verifyBuyer);
+  addRequestBtn.addEventListener('click', addRequest);
+  showMyRequests.addEventListener('change', loadRequests);
+  statusFilter.addEventListener('change', loadRequests);
+  exportBtn.addEventListener('click', exportData);
+  importBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', function(e) {
+    if (this.files.length) { importData(this.files[0]); this.value = ''; }
   });
 
   // ─── INIT ──────────────────────────────────────────────────────
   (async function init() {
-    if (token) {
-      try {
-        const res = await apiFetch('/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          currentUser = data.user;
-          userNameDisplay.textContent = currentUser.username;
-          showMainApp();
-          return;
-        }
-      } catch (e) {}
+    const savedKey = localStorage.getItem('tornApiKey');
+    if (savedKey) {
+      loading.style.display = 'none';
+      mainApp.style.display = 'block';
+      await connect(savedKey);
+    } else {
+      loading.style.display = 'none';
+      mainApp.style.display = 'block';
+      requestsTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#f5c400;"><i class="fas fa-key"></i> No API key found. Please go to the Dashboard to connect.</td></tr>`;
     }
-    showAuth();
+    setTimeout(() => { loading.style.display = 'none'; }, 500);
   })();
 </script>
 </body>
