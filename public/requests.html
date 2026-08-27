@@ -73,7 +73,6 @@
     .filter-row label { font-size: 12px; color: #7e8ca3; display: flex; align-items: center; gap: 6px; }
     .filter-row input[type="checkbox"] { accent-color: #d91e36; width: 18px; height: 18px; }
 
-    /* Loading overlay */
     #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0d12; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #f5c400; z-index: 9999; flex-direction: column; gap: 20px; }
     #loading .spinner { width: 50px; height: 50px; border: 4px solid #1f2836; border-top-color: #d91e36; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -131,9 +130,6 @@
         <div class="filter-row">
           <label><input type="checkbox" id="showMyRequests" checked /> <i class="fas fa-user"></i> Only my requests</label>
           <label>Status: <select id="statusFilter"><option value="all">All</option><option value="open">Open</option><option value="active">Active</option><option value="done">Done</option><option value="paid">Paid</option><option value="disputed">Disputed</option></select></label>
-          <button class="btn btn-primary" id="exportBtn"><i class="fas fa-file-download"></i> Export</button>
-          <button class="btn btn-warning" id="importBtn"><i class="fas fa-file-upload"></i> Import</button>
-          <input type="file" id="fileInput" accept=".json" style="display:none;" />
         </div>
         <div class="table-wrap">
           <table>
@@ -148,11 +144,10 @@
 
 <script>
   // ─── API BASE ──────────────────────────────────────────────────────
-  const API = '/api'; // Use relative path
+  const API = '/api';
 
   // ─── STATE ──────────────────────────────────────────────────────────
   let currentUser = null;
-  let currentSettings = null;
   let requests = [];
 
   // ─── DOM REFS ──────────────────────────────────────────────────────
@@ -171,9 +166,6 @@
   const requestsTableBody = $('requestsTableBody');
   const showMyRequests = $('showMyRequests');
   const statusFilter = $('statusFilter');
-  const exportBtn = $('exportBtn');
-  const importBtn = $('importBtn');
-  const fileInput = $('fileInput');
   const reqTotal = $('reqTotal');
   const reqOpen = $('reqOpen');
   const reqActive = $('reqActive');
@@ -187,14 +179,14 @@
 
   async function apiFetch(endpoint, options = {}) {
     const apiKey = localStorage.getItem('tornApiKey');
-    if (!apiKey) throw new Error('No API key. Please log in on the Dashboard first.');
+    if (!apiKey) throw new Error('No API key. Please go to Dashboard to connect.');
     const res = await fetch(`${API}${endpoint}`, {
       ...options,
       headers: { ...getHeaders(apiKey), ...(options.headers || {}) }
     });
     if (res.status === 401) {
       localStorage.removeItem('tornApiKey');
-      throw new Error('Invalid API key. Please reconnect on the Dashboard.');
+      throw new Error('Invalid API key. Please reconnect on Dashboard.');
     }
     return res;
   }
@@ -206,8 +198,6 @@
       if (!res.ok) throw new Error('Invalid API key');
       const data = await res.json();
       currentUser = data.user;
-      currentSettings = data.settings || { energy: 100, max_energy: 150, profit: 0, total_hits: 0 };
-      localStorage.setItem('tornApiKey', apiKey);
       userNameDisplay.textContent = currentUser.username || `User ${currentUser.torn_id}`;
       await loadRequests();
     } catch (e) {
@@ -218,7 +208,6 @@
   function logout() {
     localStorage.removeItem('tornApiKey');
     currentUser = null;
-    currentSettings = null;
     alert('Logged out. Please go to the Dashboard to reconnect.');
     window.location.href = 'dashboard.html';
   }
@@ -282,10 +271,7 @@
     if (!input) { verifyResult.textContent = '❌ Enter a name/ID'; return; }
     verifyResult.textContent = '⏳';
     try {
-      // Get the user's API key from settings
-      const res = await apiFetch('/me');
-      const data = await res.json();
-      const apiKey = data.settings?.api_key || localStorage.getItem('tornApiKey');
+      const apiKey = localStorage.getItem('tornApiKey');
       if (!apiKey) { verifyResult.textContent = '❌ No API key'; return; }
 
       let userId, userName;
@@ -341,50 +327,12 @@
     }
   }
 
-  // ─── EXPORT / IMPORT ──────────────────────────────────────────
-  async function exportData() {
-    try {
-      const res = await apiFetch('/admin/export');
-      if (!res.ok) throw new Error('Export failed');
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `torn_backup_${new Date().toISOString().slice(0,10)}.json`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    } catch (e) {
-      alert('❌ ' + e.message);
-    }
-  }
-
-  function importData(file) {
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (!data.requests) throw new Error('Invalid format');
-        if (confirm(`Import ${data.requests.length} requests?`)) {
-          const res = await apiFetch('/admin/import', { method: 'POST', body: JSON.stringify(data) });
-          if (res.ok) { await loadRequests(); alert('✅ Import successful'); }
-          else { const err = await res.json(); alert('❌ ' + err.error); }
-        }
-      } catch (e) { alert('❌ ' + e.message); }
-    };
-    reader.readAsText(file);
-  }
-
   // ─── EVENT LISTENERS ──────────────────────────────────────────
   logoutBtn.addEventListener('click', logout);
   verifyBuyerBtn.addEventListener('click', verifyBuyer);
   addRequestBtn.addEventListener('click', addRequest);
   showMyRequests.addEventListener('change', loadRequests);
   statusFilter.addEventListener('change', loadRequests);
-  exportBtn.addEventListener('click', exportData);
-  importBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', function(e) {
-    if (this.files.length) { importData(this.files[0]); this.value = ''; }
-  });
 
   // ─── INIT ──────────────────────────────────────────────────────
   (async function init() {
