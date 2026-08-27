@@ -6,7 +6,7 @@
   <title>Admin – Torn Loss Manager</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <style>
-    /* ─── Reset & Base ─── */
+    /* ─── Styles – same as before ─── */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
     body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
     .app { max-width: 1400px; width: 100%; }
@@ -65,7 +65,6 @@
     .receipt-item { background: #1a1f2c; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; border-left: 3px solid #f5c400; font-size: 13px; }
     .receipt-item .time { color: #7e8ca3; font-size: 11px; }
 
-    /* ─── Admin Login ─── */
     .login-container { max-width: 400px; margin: 60px auto; background: #141a24; padding: 30px; border-radius: 16px; border: 1px solid #1f2836; }
     .login-container h2 { margin-bottom: 20px; color: #f5c400; text-align: center; }
     .login-container .form-group { margin-bottom: 16px; }
@@ -174,7 +173,6 @@
       headers: { ...getHeaders(), ...(options.headers || {}) }
     });
     if (res.status === 401) {
-      // Token expired or invalid
       adminToken = null;
       localStorage.removeItem('adminToken');
       showLogin();
@@ -240,19 +238,16 @@
   // ─── LOAD ADMIN DATA ─────────────────────────────────────────────
   async function loadAdminData() {
     try {
-      // Load all requests (admin can see all)
       const reqRes = await apiFetch('/requests');
       if (reqRes.ok) {
         const requests = await reqRes.json();
         renderAdminRequests(requests);
       }
-      // Load all receipts
       const recRes = await apiFetch('/receipts');
       if (recRes.ok) {
         const receipts = await recRes.json();
         renderAdminReceipts(receipts);
       }
-      // Load attack logs
       const logRes = await apiFetch('/attack-logs');
       if (logRes.ok) {
         const logs = await logRes.json();
@@ -292,7 +287,6 @@
     html += `</tbody></table></div>`;
     adminRequestsTableWrap.innerHTML = html;
 
-    // Attach admin events
     document.querySelectorAll('.toggle-paid').forEach(b => b.addEventListener('click', () => togglePaid(parseInt(b.dataset.id))));
     document.querySelectorAll('.toggle-reported').forEach(b => b.addEventListener('click', () => toggleReported(parseInt(b.dataset.id))));
     document.querySelectorAll('.set-disputed').forEach(b => b.addEventListener('click', () => setDisputed(parseInt(b.dataset.id))));
@@ -356,7 +350,6 @@
     if (savedToken) {
       adminToken = savedToken;
       try {
-        // Test token by fetching requests
         const res = await apiFetch('/requests');
         if (res.ok) {
           adminUser = { username: 'Admin' };
@@ -366,7 +359,6 @@
           return;
         }
       } catch (e) {
-        // Token invalid, clear it
         localStorage.removeItem('adminToken');
         adminToken = null;
       }
