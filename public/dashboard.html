@@ -366,7 +366,7 @@
     if (res.ok) {
       const data = await res.json();
       currentUser = data.user;
-      currentSettings = data.settings || { energy: 100, max_energy: 150, profit: 0, total_hits: 0 };
+      currentSettings = data.settings || { energy: data.energy, max_energy: 150, profit: data.profit, total_hits: data.total_hits };
       statEnergy.textContent = currentSettings.energy || 0;
       statEnergyMax.textContent = `/ ${currentSettings.max_energy || 150}`;
       statProfit.textContent = '$' + (currentSettings.profit || 0).toLocaleString();
@@ -493,8 +493,7 @@
       const full = bar.full_time || bar.end || 0;
       const icon = icons[name] || 'circle';
       const color = colors[name] || 'gray';
-      if(bar == "energy"){
-      document.getelementById("statEnergy").innerHTML=bar.current)}
+      
       html += `
         <div class="cooldown-item">
           <div class="label"><i class="fas fa-${icon}"></i> ${name.toUpperCase()}</div>
