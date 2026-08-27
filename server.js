@@ -154,47 +154,47 @@ initDb().catch(console.error);
 
 // ─── MIDDLEWARE ────────────────────────────────────────────────────
 async function authenticateApiKey(req, res, next) {
+
+  let user = null;
   let apiKey = req.headers['x-api-key'];
-  // Accept query param for debugging
-  if (!apiKey) {
-    apiKey = req.query['apiKey'] || req.query['X-API-Key'];
+  let token = req.headers.authorization?.split(' ')[1];
+
+  // Try API key first
+  if (apiKey) {
+    try {
+      user = await get('SELECT * FROM users WHERE api_key = ?', apiKey);
+    } catch (e) {}
   }
-  if (!apiKey) return res.status(401).json({ error: 'API key required' });
 
-  try {
-    let user = await get('SELECT * FROM users WHERE api_key = ?', apiKey);
-    if (!user) {
-      // Fetch from Torn API
-      const response = await fetch(`https://api.torn.com/v2/user/basic?key=${apiKey}`);
-      if (!response.ok) throw new Error('Invalid API key');
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      const tornId = data.profile.id;
+  // If no API key user, try JWT token
+  if (!user && token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      user = await get('SELECT * FROM users WHERE id = ?', decoded.id);
+    } catch (e) {}
+  }
 
-      let existing = await get('SELECT * FROM users WHERE torn_id = ?', tornId);
-      if (!existing) {
-        const result = await run(
-          'INSERT INTO users (torn_id, api_key, username) VALUES (?, ?, ?)',
-          tornId, apiKey, data.profile.name || `User${tornId}`
-        );
-        await run('INSERT INTO user_settings (user_id) VALUES (?)', result.lastID);
-        existing = await get('SELECT * FROM users WHERE id = ?', result.lastID);
-      } else {
-        await run('UPDATE users SET api_key = ? WHERE id = ?', apiKey, existing.id);
-        existing = await get('SELECT * FROM users WHERE id = ?', existing.id);
-      }
-      user = existing;
+  // If still no user, try query param for debugging
+  if (!user) {
+    const queryKey = req.query['apiKey'] || req.query['X-API-Key'];
+    if (queryKey) {
+      user = await get('SELECT * FROM users WHERE api_key = ?', queryKey);
     }
-    req.user = user;
-// Ensure user_settings exists
-const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', user.id);
-if (!settings) {
-  await run('INSERT INTO user_settings (user_id) VALUES (?)', user.id);
-}
-    next();
-  } catch (e) {
-    res.status(401).json({ error: e.message });
   }
+
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  req.user = user;
+
+  // Ensure user_settings exists
+  const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', user.id);
+  if (!settings) {
+    await run('INSERT INTO user_settings (user_id) VALUES (?)', user.id);
+  }
+
+  next();
 }
 
 function authenticateJWT(req, res, next) {
