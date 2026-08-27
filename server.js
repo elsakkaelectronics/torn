@@ -382,7 +382,7 @@ app.get('/api/requests/:id/receipts', authenticateApiKey, async (req, res) => {
 });
 
 // ─── HIT LOGS ──────────────────────────────────────────────────────
-app.get('/api/attack-logs', authenticateApikey, async (req, res) => {
+app.get('/api/attack-logs', authenticateApiKey, async (req, res) => {
   let query = 'SELECT * FROM attack_logs';
   const params = [];
   if (req.user.role !== 'admin') {
