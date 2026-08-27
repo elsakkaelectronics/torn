@@ -128,7 +128,12 @@
     </div>
   </div>
 </div>
-
+<div class="card">
+  <div class="card-header"><span><i class="fas fa-money-bill-wave"></i> PENDING PAYMENTS</span></div>
+  <div class="card-body">
+    <div id="pendingPaymentsList"><div class="empty-state">No pending payments.</div></div>
+  </div>
+</div>
 <script>
   // ─── API BASE ──────────────────────────────────────────────────────
   const API = '/api';
@@ -249,6 +254,23 @@
     } catch (e) {
       console.error('Error loading admin data:', e);
     }
+    // Load all pending payments (admin only)
+const payRes = await apiFetch('/requests?status=done');
+if (payRes.ok) {
+  const requests = await payRes.json();
+  let pending = [];
+  for (const r of requests) {
+    const subs = await apiFetch(`/requests/${r.id}/payment-submissions`);
+    if (subs.ok) {
+      const data = await subs.json();
+      const pendingSubs = data.filter(s => s.status === 'pending');
+      if (pendingSubs.length) {
+        pending.push({ request: r, submissions: pendingSubs });
+      }
+    }
+  }
+  renderPendingPayments(pending);
+}
   }
 
   function renderAdminRequests(requests) {
