@@ -1,31 +1,17 @@
-require('express-async-errors'); // auto-catch async errors
 const express = require('express');
 const cors = require('cors');
 const sqlite3 = require('sqlite3');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
-const NodeCache = require('node-cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'torn-loss-manager-secret';
 
-// ─── MIDDLEWARE ──────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(morgan('combined')); // log all requests
-
-// Rate limiter for API endpoints
-const limiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute
-  message: { error: 'Too many requests, please slow down.' }
-});
-app.use('/api', limiter);
 
 // ─── DATABASE ──────────────────────────────────────────────────────
 const db = new sqlite3.Database('torn_loss_manager.db');
@@ -146,7 +132,7 @@ async function initDb() {
     await exec(schema);
     console.log('✅ Tables created');
 
-    // Seed admin user (torn_id = 0)
+    // Seed admin user
     const existingAdmin = await get('SELECT id FROM users WHERE torn_id = 0');
     if (!existingAdmin) {
       await run(
@@ -166,19 +152,19 @@ async function initDb() {
 }
 initDb().catch(console.error);
 
-// ─── CACHE ─────────────────────────────────────────────────────────
-const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 }); // 60 sec TTL
-
-// ─── MIDDLEWARE: AUTH ─────────────────────────────────────────────
+// ─── MIDDLEWARE ────────────────────────────────────────────────────
 async function authenticateApiKey(req, res, next) {
   let apiKey = req.headers['x-api-key'];
-  if (!apiKey) apiKey = req.query['apiKey'] || req.query['X-API-Key'];
+  // Accept query param for debugging
+  if (!apiKey) {
+    apiKey = req.query['apiKey'] || req.query['X-API-Key'];
+  }
   if (!apiKey) return res.status(401).json({ error: 'API key required' });
 
   try {
     let user = await get('SELECT * FROM users WHERE api_key = ?', apiKey);
     if (!user) {
-      // Fetch from Torn API to get torn_id and name
+      // Fetch from Torn API
       const response = await fetch(`https://api.torn.com/v2/user/basic?key=${apiKey}`);
       if (!response.ok) throw new Error('Invalid API key');
       const data = await response.json();
@@ -200,13 +186,11 @@ async function authenticateApiKey(req, res, next) {
       user = existing;
     }
     req.user = user;
-
-    // Ensure user_settings row exists
-    const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', user.id);
-    if (!settings) {
-      await run('INSERT INTO user_settings (user_id) VALUES (?)', user.id);
-    }
-
+// Ensure user_settings exists
+const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', user.id);
+if (!settings) {
+  await run('INSERT INTO user_settings (user_id) VALUES (?)', user.id);
+}
     next();
   } catch (e) {
     res.status(401).json({ error: e.message });
@@ -253,13 +237,13 @@ app.post('/api/admin/login', async (req, res) => {
   res.status(401).json({ error: 'Invalid credentials' });
 });
 
-// Get current user (frontend calls this with API key)
+// Get current user
 app.get('/api/me', authenticateApiKey, async (req, res) => {
   const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', req.user.id);
   res.json({ user: req.user, settings });
 });
 
-// Update user settings
+// Update settings
 app.put('/api/settings', authenticateApiKey, async (req, res) => {
   const { energy, max_energy, interval, tick_time, full_time, profit, total_hits } = req.body;
   await run(`
@@ -279,94 +263,18 @@ app.put('/api/settings', authenticateApiKey, async (req, res) => {
 
 // ─── BARS (energy, nerve, happy, life, chain) ────────────────────
 app.get('/api/bars', authenticateApiKey, async (req, res) => {
-
-  // ✅ FIX: prevent crash if req.user is missing
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-});
-  // 1. Check user
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  // 2. Get user's API key from DB
-async function user(){
   const user = await get('SELECT api_key FROM users WHERE id = ?', req.user.id);
-}
   if (!user || !user.api_key) {
-    return res.status(400).json({ error: 'Torn API key not set in your account' });
+    return res.status(400).json({ error: 'Torn API key not set' });
   }
-
-  // 3. Check cache
-  const cacheKey = `bars_${req.user.id}`;
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    return res.json(cached);
-  }
-
-  // 4. Fetch with timeout
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
   try {
-    const response = await fetch(
-      `https://api.torn.com/v2/user/bars?key=${user.api_key}`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timeout);
-
-    // 5. Check HTTP status
-    if (!response.ok) {
-      console.error(`Torn API error: ${response.status} ${response.statusText}`);
-      return res.status(response.status).json({
-        error: `Torn API returned ${response.status}`
-      });
-    }
-
-    // 6. Parse JSON safely
-    let data;
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      console.error('Failed to parse Torn API response:', parseError);
-      return res.status(502).json({ error: 'Invalid response from Torn API' });
-    }
-
-    // 7. Check Torn API error field
-    if (data.error) {
-      const msg = data.error.error || data.error.message || 'Unknown Torn API error';
-      console.error(`Torn API error: ${msg}`);
-      return res.status(400).json({ error: `Torn API error: ${msg}` });
-    }
-
-    // 8. Extract bars
-    const bars = data.bars || {};
-    if (Object.keys(bars).length === 0) {
-      console.warn('Torn API returned empty bars data');
-    }
-
-    // 9. Cache the result (60 seconds)
-    cache.set(cacheKey, bars);
-
-    res.json(bars);
-
-  } catch (error) {
-    clearTimeout(timeout);
-    // 10. Differentiate error types
-    if (error.name === 'AbortError') {
-      console.error('Torn API request timed out');
-      return res.status(504).json({ error: 'Request timed out. Please try again.' });
-    }
-
-    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
-      console.error('Network error connecting to Torn API:', error);
-      return res.status(502).json({ error: 'Cannot reach Torn API. Check your network.' });
-    }
-
-    console.error('Unexpected error in /api/bars:', error);
-    res.status(500).json({ error: 'Internal server error. Please try again later.' });
+    const response = await fetch(`https://api.torn.com/v2/user/bars?key=${user.api_key}`);
+    if (!response.ok) throw new Error('Failed to fetch bars');
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    res.json(data.bars || {});
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -628,15 +536,6 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
-
-// ─── ERROR HANDLER ────────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
 });
 
 // ─── STATIC FILES ──────────────────────────────────────────────────
