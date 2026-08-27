@@ -172,6 +172,23 @@
 </div>
 
 <script>
+  // ─── READ URL PARAMETERS ──────────────────────────────────────────
+function getUrlParam(name) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name) || '';
+}
+
+// After loading the page, auto‑fill fields
+const targetParam = getUrlParam('target');
+const loserParam = getUrlParam('loser');
+if (targetParam) {
+  document.getElementById('buyerName').value = targetParam;
+  // Optionally verify the buyer automatically
+  setTimeout(verifyBuyer, 300);
+}
+if (loserParam) {
+  document.getElementById('loserId').value = loserParam;
+}
   // ─── API BASE ──────────────────────────────────────────────────────
   const API = '/api';
 
