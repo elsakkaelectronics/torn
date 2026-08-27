@@ -6,7 +6,7 @@
   <title>Admin – Torn Loss Manager</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <style>
-    /* ─── Styles – same as before ─── */
+    /* ─── Same styles as before ─── */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
     body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
     .app { max-width: 1400px; width: 100%; }
@@ -83,19 +83,12 @@
 <div id="loading"><div class="spinner"></div><span>Loading...</span></div>
 
 <div class="app" id="app">
-
   <!-- Admin Login -->
   <div id="loginContainer" style="display:none;">
     <div class="login-container">
       <h2><i class="fas fa-user-cog"></i> Admin Login</h2>
-      <div class="form-group">
-        <label>Username</label>
-        <input type="text" id="adminUsername" placeholder="Enter admin username" value="nightmare" />
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="adminPassword" placeholder="Enter admin password" value="qwerty" />
-      </div>
+      <div class="form-group"><label>Username</label><input type="text" id="adminUsername" value="nightmare" /></div>
+      <div class="form-group"><label>Password</label><input type="password" id="adminPassword" value="qwerty" /></div>
       <button class="btn btn-primary" id="adminLoginBtn"><i class="fas fa-sign-in-alt"></i> Login</button>
       <div id="loginError" class="error"></div>
     </div>
@@ -167,12 +160,11 @@
     return { 'Content-Type': 'application/json' };
   }
 
-async function apiFetch(endpoint, options = {}) {
-  const res = await fetch(`${API}${endpoint}`, {
-    cache: 'no-store',
-    ...options,
-    headers: { ...getHeaders(), ...(options.headers || {}) }
-  });
+  async function apiFetch(endpoint, options = {}) {
+    const res = await fetch(`${API}${endpoint}`, {
+      ...options,
+      headers: { ...getHeaders(), ...(options.headers || {}) }
+    });
     if (res.status === 401) {
       adminToken = null;
       localStorage.removeItem('adminToken');
@@ -279,18 +271,78 @@ async function apiFetch(endpoint, options = {}) {
         <td>${r.paid ? '✅' : '❌'}</td>
         <td>${r.reported ? '⚠️' : '—'}</td>
         <td style="text-align:right; white-space:nowrap;">
+          <!-- Existing admin actions -->
           <button class="btn btn-xs btn-success toggle-paid" data-id="${r.id}"><i class="fas fa-dollar-sign"></i></button>
           <button class="btn btn-xs btn-danger toggle-reported" data-id="${r.id}"><i class="fas fa-flag"></i></button>
           <button class="btn btn-xs btn-warning set-disputed" data-id="${r.id}"><i class="fas fa-exclamation-triangle"></i></button>
+          <!-- New actions: Verify, Blacklist, Resolve -->
+          <button class="btn btn-xs btn-primary admin-verify" data-id="${r.id}"><i class="fas fa-check-circle"></i> Verify</button>
+          <button class="btn btn-xs btn-danger admin-blacklist" data-id="${r.id}" data-torn="${r.buyer_id || ''}"><i class="fas fa-ban"></i> Blacklist</button>
+          ${r.status === 'disputed' ? `<button class="btn btn-xs btn-success admin-resolve" data-id="${r.id}"><i class="fas fa-check"></i> Resolve</button>` : ''}
         </td>
       </tr>`;
     });
     html += `</tbody></table></div>`;
     adminRequestsTableWrap.innerHTML = html;
 
+    // Attach events
     document.querySelectorAll('.toggle-paid').forEach(b => b.addEventListener('click', () => togglePaid(parseInt(b.dataset.id))));
     document.querySelectorAll('.toggle-reported').forEach(b => b.addEventListener('click', () => toggleReported(parseInt(b.dataset.id))));
     document.querySelectorAll('.set-disputed').forEach(b => b.addEventListener('click', () => setDisputed(parseInt(b.dataset.id))));
+
+    // New events
+    document.querySelectorAll('.admin-verify').forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.id;
+      const message = prompt('Enter a message (optional):', 'Admin verified hit');
+      const logId = prompt('Enter a log ID (optional):', 'manual');
+      try {
+        const res = await apiFetch(`/admin/requests/${id}/verify`, {
+          method: 'POST',
+          body: JSON.stringify({ log_id: logId, message })
+        });
+        if (res.ok) {
+          alert('✅ Receipt added');
+          await loadAdminData();
+        } else {
+          const err = await res.json();
+          alert('❌ ' + err.error);
+        }
+      } catch (e) { alert('❌ ' + e.message); }
+    }));
+
+    document.querySelectorAll('.admin-blacklist').forEach(b => b.addEventListener('click', async () => {
+      const tornId = b.dataset.torn;
+      if (!tornId) { alert('No Torn ID for this user'); return; }
+      const reason = prompt('Reason for blacklisting (optional):');
+      try {
+        const res = await apiFetch('/admin/blacklist', {
+          method: 'POST',
+          body: JSON.stringify({ torn_id: parseInt(tornId), reason })
+        });
+        if (res.ok) {
+          alert('✅ User blacklisted');
+          await loadAdminData();
+        } else {
+          const err = await res.json();
+          alert('❌ ' + err.error);
+        }
+      } catch (e) { alert('❌ ' + e.message); }
+    }));
+
+    document.querySelectorAll('.admin-resolve').forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.id;
+      if (!confirm('Resolve this dispute?')) return;
+      try {
+        const res = await apiFetch(`/admin/requests/${id}/resolve`, { method: 'PUT' });
+        if (res.ok) {
+          alert('✅ Dispute resolved');
+          await loadAdminData();
+        } else {
+          const err = await res.json();
+          alert('❌ ' + err.error);
+        }
+      } catch (e) { alert('❌ ' + e.message); }
+    }));
   }
 
   function renderAdminReceipts(receipts) {
@@ -325,7 +377,7 @@ async function apiFetch(endpoint, options = {}) {
     adminLogsList.innerHTML = html;
   }
 
-  // ─── ADMIN ACTIONS ──────────────────────────────────────────────
+  // ─── ADMIN ACTIONS (existing) ────────────────────────────────────
   async function togglePaid(id) {
     const res = await apiFetch(`/admin/requests/${id}/toggle-paid`, { method: 'PUT' });
     if (res.ok) { await loadAdminData(); }
