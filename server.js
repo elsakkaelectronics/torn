@@ -1,9 +1,13 @@
+require('express-async-errors');
 const express = require('express');
 const cors = require('cors');
 const sqlite3 = require('sqlite3');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const NodeCache = require('node-cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,11 +16,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'torn-loss-manager-secret';
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(morgan('combined'));
+
+const limiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
+app.use('/api', limiter);
 
 // ─── DATABASE ──────────────────────────────────────────────────────
 const db = new sqlite3.Database('torn_loss_manager.db');
-
-// Custom promisified wrappers
 function run(sql, ...params) {
   return new Promise((resolve, reject) => {
     db.run(sql, ...params, function(err) {
@@ -25,7 +31,6 @@ function run(sql, ...params) {
     });
   });
 }
-
 function get(sql, ...params) {
   return new Promise((resolve, reject) => {
     db.get(sql, ...params, (err, row) => {
@@ -34,7 +39,6 @@ function get(sql, ...params) {
     });
   });
 }
-
 function all(sql, ...params) {
   return new Promise((resolve, reject) => {
     db.all(sql, ...params, (err, rows) => {
@@ -43,7 +47,6 @@ function all(sql, ...params) {
     });
   });
 }
-
 function exec(sql) {
   return new Promise((resolve, reject) => {
     db.exec(sql, (err) => {
@@ -57,7 +60,6 @@ function exec(sql) {
 async function initDb() {
   try {
     await run('PRAGMA foreign_keys = ON');
-
     const schema = `
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +69,6 @@ async function initDb() {
         role TEXT DEFAULT 'user',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
-
       CREATE TABLE IF NOT EXISTS user_settings (
         user_id INTEGER PRIMARY KEY,
         energy INTEGER DEFAULT 100,
@@ -79,7 +80,6 @@ async function initDb() {
         total_hits INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
-
       CREATE TABLE IF NOT EXISTS requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -98,7 +98,6 @@ async function initDb() {
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (hitter_id) REFERENCES users(id)
       );
-
       CREATE TABLE IF NOT EXISTS receipts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         request_id INTEGER NOT NULL,
@@ -107,7 +106,6 @@ async function initDb() {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE
       );
-
       CREATE TABLE IF NOT EXISTS hit_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -118,7 +116,6 @@ async function initDb() {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
-
       CREATE TABLE IF NOT EXISTS attack_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -132,18 +129,12 @@ async function initDb() {
     await exec(schema);
     console.log('✅ Tables created');
 
-    // Seed admin user
     const existingAdmin = await get('SELECT id FROM users WHERE torn_id = 0');
     if (!existingAdmin) {
-      await run(
-        'INSERT INTO users (torn_id, username, role) VALUES (?, ?, ?)',
-        0, 'admin', 'admin'
-      );
+      await run('INSERT INTO users (torn_id, username, role) VALUES (?, ?, ?)', 0, 'admin', 'admin');
       const admin = await get('SELECT id FROM users WHERE torn_id = 0');
       await run('INSERT INTO user_settings (user_id) VALUES (?)', admin.id);
       console.log('✅ Admin user created (nightmare / qwerty)');
-    } else {
-      console.log('✅ Admin user already exists');
     }
   } catch (e) {
     console.error('❌ Database init error:', e.message);
@@ -152,58 +143,43 @@ async function initDb() {
 }
 initDb().catch(console.error);
 
-// ─── MIDDLEWARE ────────────────────────────────────────────────────
-// ─── REPLACE THIS ────────────────────────────────────────────────
-// async function authenticateApiKey(req, res, next) { ... }
+const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
-// ─── WITH THIS ──────────────────────────────────────────────────
-async function authenticateApiKey(req, res, next) {
+// ─── UNIVERSAL AUTHENTICATION ─────────────────────────────────────
+async function authenticate(req, res, next) {
   let user = null;
   const apiKey = req.headers['x-api-key'];
   const token = req.headers.authorization?.split(' ')[1];
 
+  // Try API key
   if (apiKey) {
     try { user = await get('SELECT * FROM users WHERE api_key = ?', apiKey); } catch (e) {}
   }
+  // Try JWT token
   if (!user && token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       user = await get('SELECT * FROM users WHERE id = ?', decoded.id);
     } catch (e) {}
   }
+  // Try query param (debug)
   if (!user) {
     const queryKey = req.query['apiKey'] || req.query['X-API-Key'];
     if (queryKey) user = await get('SELECT * FROM users WHERE api_key = ?', queryKey);
   }
-  if (!user) return res.status(401).json({ error: 'Authentication required' });
+
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
 
   req.user = user;
+
+  // Ensure user_settings exists
   const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', user.id);
-  if (!settings) await run('INSERT INTO user_settings (user_id) VALUES (?)', user.id);
-  next();
-}
-
-
-
-function authenticateJWT(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Token required' });
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    get('SELECT * FROM users WHERE id = ?', decoded.id)
-      .then(user => {
-        if (!user) return res.status(401).json({ error: 'User not found' });
-        req.user = user;
-        next();
-      })
-      .catch(() => res.status(401).json({ error: 'Invalid token' }));
-  } catch (e) {
-    res.status(401).json({ error: 'Invalid token' });
+  if (!settings) {
+    await run('INSERT INTO user_settings (user_id) VALUES (?)', user.id);
   }
-}
 
-function requireAdmin(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin required' });
   next();
 }
 
@@ -226,13 +202,13 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Get current user
-app.get('/api/me', authenticateApiKey, async (req, res) => {
+app.get('/api/me', authenticate, async (req, res) => {
   const settings = await get('SELECT * FROM user_settings WHERE user_id = ?', req.user.id);
   res.json({ user: req.user, settings });
 });
 
 // Update settings
-app.put('/api/settings', authenticateApiKey, async (req, res) => {
+app.put('/api/settings', authenticate, async (req, res) => {
   const { energy, max_energy, interval, tick_time, full_time, profit, total_hits } = req.body;
   await run(`
     UPDATE user_settings SET
@@ -249,25 +225,51 @@ app.put('/api/settings', authenticateApiKey, async (req, res) => {
   res.json(settings);
 });
 
-// ─── BARS (energy, nerve, happy, life, chain) ────────────────────
-app.get('/api/bars', authenticateApiKey, async (req, res) => {
+// ─── BARS ──────────────────────────────────────────────────────────
+app.get('/api/bars', authenticate, async (req, res) => {
   const user = await get('SELECT api_key FROM users WHERE id = ?', req.user.id);
   if (!user || !user.api_key) {
     return res.status(400).json({ error: 'Torn API key not set' });
   }
+
+  const cacheKey = `bars_${req.user.id}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
   try {
-    const response = await fetch(`https://api.torn.com/v2/user/bars?key=${user.api_key}`);
-    if (!response.ok) throw new Error('Failed to fetch bars');
+    const response = await fetch(
+      `https://api.torn.com/v2/user/bars?key=${user.api_key}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Torn API returned ${response.status}` });
+    }
+
     const data = await response.json();
-    if (data.error) throw new Error(data.error);
-    res.json(data.bars || {});
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    if (data.error) {
+      return res.status(400).json({ error: `Torn API error: ${data.error.error || 'Unknown error'}` });
+    }
+
+    const bars = data.bars || {};
+    cache.set(cacheKey, bars);
+    res.json(bars);
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error.name === 'AbortError') {
+      return res.status(504).json({ error: 'Request timed out' });
+    }
+    console.error('Bars error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // ─── REQUESTS ──────────────────────────────────────────────────────
-app.get('/api/requests', authenticateApiKey, async (req, res) => {
+app.get('/api/requests', authenticate, async (req, res) => {
   let query = 'SELECT * FROM requests';
   const params = [];
   if (req.user.role !== 'admin') {
@@ -279,10 +281,33 @@ app.get('/api/requests', authenticateApiKey, async (req, res) => {
   res.json(rows);
 });
 
+app.post('/api/requests', authenticate, async (req, res) => {
+  const { buyer, buyer_id, loser, price, total } = req.body;
+  if (!buyer || !price || !total) {
+    return res.status(400).json({ error: 'Buyer, price, and total required' });
+  }
+  const result = await run(`
+    INSERT INTO requests (user_id, buyer, buyer_id, loser, price, total, remaining)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, req.user.id, buyer, buyer_id || null, loser || '', price, total, total);
+  const newReq = await get('SELECT * FROM requests WHERE id = ?', result.lastID);
+  res.json(newReq);
+});
 
+app.put('/api/requests/:id/accept', authenticate, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+  if (reqData.status !== 'open') return res.status(400).json({ error: 'Request is not open' });
+  if (reqData.user_id !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'You can only accept requests from your own account' });
+  }
+  await run('UPDATE requests SET status = "active", hitter_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', req.user.id, req.params.id);
+  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  res.json(updated);
+});
 
-app.put('/api/requests/:id/complete', authenticateApiKey, async (req, res) => {
-  const reqData = await get('SELECT * FROM requests WHERE id = ? AND user_id = ?', req.params.id, req.user.id);
+app.put('/api/requests/:id/complete', authenticate, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
   if (!reqData) return res.status(404).json({ error: 'Request not found' });
   if (reqData.hitter_id !== req.user.id) return res.status(403).json({ error: 'Only the assigned hitter can complete' });
   if (reqData.remaining > 0) return res.status(400).json({ error: 'Verify all hits first' });
@@ -291,8 +316,8 @@ app.put('/api/requests/:id/complete', authenticateApiKey, async (req, res) => {
   res.json(updated);
 });
 
-app.put('/api/requests/:id/paid', authenticateApiKey, async (req, res) => {
-  const reqData = await get('SELECT * FROM requests WHERE id = ? AND user_id = ?', req.params.id, req.user.id);
+app.put('/api/requests/:id/paid', authenticate, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
   if (!reqData) return res.status(404).json({ error: 'Request not found' });
   if (reqData.hitter_id !== req.user.id) return res.status(403).json({ error: 'Only the assigned hitter can mark paid' });
   if (reqData.remaining > 0) return res.status(400).json({ error: 'Complete all hits first' });
@@ -301,8 +326,8 @@ app.put('/api/requests/:id/paid', authenticateApiKey, async (req, res) => {
   res.json(updated);
 });
 
-app.post('/api/requests/:id/verify', authenticateApiKey, async (req, res) => {
-  const reqData = await get('SELECT * FROM requests WHERE id = ? AND user_id = ?', req.params.id, req.user.id);
+app.post('/api/requests/:id/verify', authenticate, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
   if (!reqData) return res.status(404).json({ error: 'Request not found' });
   if (reqData.hitter_id !== req.user.id) return res.status(403).json({ error: 'Only the assigned hitter can verify' });
   if (reqData.remaining <= 0) return res.status(400).json({ error: 'No remaining hits to verify' });
@@ -350,8 +375,8 @@ app.post('/api/requests/:id/verify', authenticateApiKey, async (req, res) => {
   }
 });
 
-app.delete('/api/requests/:id', authenticateApiKey, async (req, res) => {
-  const reqData = await get('SELECT * FROM requests WHERE id = ? AND user_id = ?', req.params.id, req.user.id);
+app.delete('/api/requests/:id', authenticate, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
   if (!reqData) return res.status(404).json({ error: 'Request not found' });
   if (reqData.status !== 'open' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Only admins can delete non-open requests' });
@@ -361,7 +386,7 @@ app.delete('/api/requests/:id', authenticateApiKey, async (req, res) => {
 });
 
 // ─── RECEIPTS ──────────────────────────────────────────────────────
-app.get('/api/receipts', authenticateApiKey, async (req, res) => {
+app.get('/api/receipts', authenticate, async (req, res) => {
   let query = `
     SELECT r.*, req.buyer, req.loser FROM receipts r
     JOIN requests req ON r.request_id = req.id
@@ -376,30 +401,20 @@ app.get('/api/receipts', authenticateApiKey, async (req, res) => {
   res.json(rows);
 });
 
-app.get('/api/requests/:id/receipts', authenticateApiKey, async (req, res) => {
+app.get('/api/requests/:id/receipts', authenticate, async (req, res) => {
   const rows = await all('SELECT * FROM receipts WHERE request_id = ? ORDER BY timestamp DESC', req.params.id);
   res.json(rows);
 });
 
 // ─── HIT LOGS ──────────────────────────────────────────────────────
-app.get('/api/attack-logs', authenticateApiKey, async (req, res) => {
-  let query = 'SELECT * FROM attack_logs';
-  const params = [];
-  if (req.user.role !== 'admin') {
-    query += ' WHERE user_id = ?';
-    params.push(req.user.id);
-  }
-  query += ' ORDER BY timestamp DESC LIMIT 50';
-  const rows = await all(query, ...params);
-  const parsed = rows.map(row => ({
-    ...row,
-    log_data: JSON.parse(row.log_data),
-    details: row.details ? JSON.parse(row.details) : {}
-  }));
-  res.json(parsed);
+app.get('/api/hit-logs', authenticate, async (req, res) => {
+  const rows = await all(`
+    SELECT * FROM hit_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 20
+  `, req.user.id);
+  res.json(rows);
 });
 
-app.post('/api/hit-logs', authenticateApiKey, async (req, res) => {
+app.post('/api/hit-logs', authenticate, async (req, res) => {
   const { buyer, loser, price, energy_used } = req.body;
   const result = await run(`
     INSERT INTO hit_logs (user_id, buyer, loser, price, energy_used) VALUES (?, ?, ?, ?, ?)
@@ -409,7 +424,7 @@ app.post('/api/hit-logs', authenticateApiKey, async (req, res) => {
 });
 
 // ─── ATTACK LOGS ───────────────────────────────────────────────────
-app.post('/api/attack-logs/fetch', authenticateApiKey, async (req, res) => {
+app.post('/api/attack-logs/fetch', authenticate, async (req, res) => {
   const user = await get('SELECT api_key FROM users WHERE id = ?', req.user.id);
   if (!user || !user.api_key) {
     return res.status(400).json({ error: 'Torn API key not set' });
@@ -439,10 +454,15 @@ app.post('/api/attack-logs/fetch', authenticateApiKey, async (req, res) => {
   }
 });
 
-app.get('/api/attack-logs', authenticateApiKey, async (req, res) => {
-  const rows = await all(`
-    SELECT * FROM attack_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 50
-  `, req.user.id);
+app.get('/api/attack-logs', authenticate, async (req, res) => {
+  let query = 'SELECT * FROM attack_logs';
+  const params = [];
+  if (req.user.role !== 'admin') {
+    query += ' WHERE user_id = ?';
+    params.push(req.user.id);
+  }
+  query += ' ORDER BY timestamp DESC LIMIT 50';
+  const rows = await all(query, ...params);
   const parsed = rows.map(row => ({
     ...row,
     log_data: JSON.parse(row.log_data),
@@ -452,33 +472,21 @@ app.get('/api/attack-logs', authenticateApiKey, async (req, res) => {
 });
 
 // ─── ADMIN ROUTES ────────────────────────────────────────────────
-async function adminAuth(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      const user = await get('SELECT * FROM users WHERE id = ?', decoded.id);
-      if (user && user.role === 'admin') {
-        req.user = user;
-        return next();
-      }
-    } catch (e) {}
-  }
-  await authenticateApiKey(req, res, () => {
-    if (req.user.role === 'admin') {
-      next();
-    } else {
-      res.status(403).json({ error: 'Admin required' });
+async function requireAdmin(req, res, next) {
+  await authenticate(req, res, () => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin required' });
     }
+    next();
   });
 }
 
-app.get('/api/users', adminAuth, async (req, res) => {
+app.get('/api/users', requireAdmin, async (req, res) => {
   const rows = await all('SELECT id, username, role, torn_id, created_at FROM users');
   res.json(rows);
 });
 
-app.get('/api/admin/export', adminAuth, async (req, res) => {
+app.get('/api/admin/export', requireAdmin, async (req, res) => {
   const users = await all('SELECT id, username, role, torn_id FROM users');
   const requests = await all('SELECT * FROM requests');
   const receipts = await all('SELECT * FROM receipts');
@@ -488,7 +496,7 @@ app.get('/api/admin/export', adminAuth, async (req, res) => {
   res.json({ users, requests, receipts, hit_logs, attack_logs, user_settings });
 });
 
-app.post('/api/admin/import', adminAuth, async (req, res) => {
+app.post('/api/admin/import', requireAdmin, async (req, res) => {
   const { requests, receipts, hit_logs } = req.body;
   if (!requests) return res.status(400).json({ error: 'Missing requests data' });
 
@@ -526,6 +534,12 @@ app.post('/api/admin/import', adminAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ─── ERROR HANDLER ────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.stack);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // ─── STATIC FILES ──────────────────────────────────────────────────
