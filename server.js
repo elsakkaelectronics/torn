@@ -192,6 +192,106 @@ async function authenticate(req, res, next) {
 // ─── ROUTES ─────────────────────────────────────────────────────────
 
 // Admin login
+// ─── Add this table to initDb() ──────────────────────────────────
+// In initDb(), inside the schema string:
+CREATE TABLE IF NOT EXISTS blacklist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  torn_id INTEGER,
+  reason TEXT,
+  created_by INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, torn_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+// ─── New Admin Routes ─────────────────────────────────────────────
+
+// ─── ADMIN VERIFY (manual receipt) ──────────────────────────────
+app.post('/api/admin/requests/:id/verify', requireAdmin, async (req, res) => {
+  const { log_id, message } = req.body;
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+
+  const receiptMsg = message || `Admin verified hit against ${reqData.loser}. Log ID: ${log_id || 'manual'}`;
+  const result = await run(
+    'INSERT INTO receipts (request_id, log_id, message) VALUES (?, ?, ?)',
+    req.params.id, log_id || null, receiptMsg
+  );
+  // Decrement remaining if not already zero
+  if (reqData.remaining > 0) {
+    await run('UPDATE requests SET remaining = remaining - 1 WHERE id = ?', req.params.id);
+  }
+  // If remaining becomes 0, mark as done
+  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (updated.remaining === 0 && updated.status === 'active') {
+    await run('UPDATE requests SET status = "done" WHERE id = ?', req.params.id);
+  }
+  const receipt = await get('SELECT * FROM receipts WHERE id = ?', result.lastID);
+  res.json(receipt);
+});
+
+// ─── BLACKLIST ──────────────────────────────────────────────────────
+app.get('/api/admin/blacklist', requireAdmin, async (req, res) => {
+  const rows = await all(`
+    SELECT b.*, u.username as created_by_name FROM blacklist b
+    LEFT JOIN users u ON b.created_by = u.id
+    ORDER BY b.created_at DESC
+  `);
+  res.json(rows);
+});
+
+app.post('/api/admin/blacklist', requireAdmin, async (req, res) => {
+  const { user_id, torn_id, reason } = req.body;
+  if (!user_id && !torn_id) {
+    return res.status(400).json({ error: 'Either user_id or torn_id required' });
+  }
+  // Check if already blacklisted
+  const existing = await get(
+    'SELECT * FROM blacklist WHERE (user_id = ? OR torn_id = ?)',
+    user_id || null, torn_id || null
+  );
+  if (existing) return res.status(400).json({ error: 'User already blacklisted' });
+
+  await run(
+    'INSERT INTO blacklist (user_id, torn_id, reason, created_by) VALUES (?, ?, ?, ?)',
+    user_id || null, torn_id || null, reason || '', req.user.id
+  );
+  res.json({ success: true });
+});
+
+app.delete('/api/admin/blacklist/:id', requireAdmin, async (req, res) => {
+  const result = await run('DELETE FROM blacklist WHERE id = ?', req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
+});
+
+// ─── DISPUTE RESOLVE ──────────────────────────────────────────────
+app.put('/api/admin/requests/:id/resolve', requireAdmin, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+  // If disputed, revert to previous status (active if remaining > 0 else done)
+  const newStatus = reqData.remaining > 0 ? 'active' : 'done';
+  await run('UPDATE requests SET status = ?, reported = 0 WHERE id = ?', newStatus, req.params.id);
+  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  res.json(updated);
+});
+
+// ─── Blacklist enforcement ──────────────────────────────────────────
+// Inside POST /api/requests (after user auth)
+if (buyer_id) {
+  const blacklisted = await get('SELECT * FROM blacklist WHERE torn_id = ?', buyer_id);
+  if (blacklisted) {
+    return res.status(403).json({ error: 'Buyer is blacklisted' });
+  }
+}
+
+// Inside PUT /api/requests/:id/accept (after request validation)
+const blacklisted = await get('SELECT * FROM blacklist WHERE user_id = ?', req.user.id);
+if (blacklisted) {
+  return res.status(403).json({ error: 'You are blacklisted and cannot accept requests' });
+}
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (username === 'nightmare' && password === 'qwerty') {
