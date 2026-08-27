@@ -711,7 +711,7 @@
   document.getElementById('dashboardLoserBtn').addEventListener('click', function() {
     const tornId = getTornId();
     if (!tornId) { dashboardFeedback.textContent = '❌ No Torn ID found.'; return; }
-    const url = window.location.origin + window.location.pathname + '?loser=' + tornId;
+    const url = window.location.origin + "/requests.html" + '?loser=' + tornId;
     dashboardUrl.value = url;
     dashboardCopyBtn.style.display = 'inline-flex';
     dashboardFeedback.textContent = '✅ Loser link generated.';
