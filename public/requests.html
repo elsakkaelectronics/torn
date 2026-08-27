@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Requests – Torn Loss Manager</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <style>
+    /* Same styles as dashboard – include all */
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
+    body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
+    .app { max-width: 1400px; width: 100%; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1e26; border-radius: 8px; }
+    ::-webkit-scrollbar-thumb { background: #d91e36; border-radius: 8px; }
+
+    .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 0 12px; border-bottom: 2px solid #1e2532; margin-bottom: 20px; }
+    .logo { display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 800; }
+    .logo i { color: #d91e36; font-size: 32px; }
+    .logo span { background: linear-gradient(135deg, #d91e36, #f5c400); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-links { display: flex; gap: 20px; }
+    .nav-links a { color: #7e8ca3; text-decoration: none; font-weight: 600; padding: 6px 12px; border-radius: 8px; transition: 0.2s; }
+    .nav-links a:hover { color: #e2e8f0; background: #1f2836; }
+    .nav-links a.active { color: #fff; background: #d91e36; }
+
+    .stats-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+    .stat-card { background: #141a24; border-radius: 16px; padding: 12px 18px; border: 1px solid #1f2836; flex: 1; min-width: 100px; }
+    .stat-card .label { font-size: 12px; font-weight: 600; color: #7e8ca3; text-transform: uppercase; }
+    .stat-card .value { font-size: 22px; font-weight: 700; }
+
+    .card { background: #141a24; border-radius: 16px; border: 1px solid #1f2836; overflow: hidden; margin-bottom: 24px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #1f2836; font-weight: 700; font-size: 15px; color: #d1d8e3; background: #10161e; }
+    .card-header i { margin-right: 8px; color: #d91e36; }
+    .card-body { padding: 18px 20px 22px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: 0.15s; background: #1f2836; color: #c8d0dc; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #d91e36; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #f03a52; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #22c55e; }
+    .btn-warning { background: #b45309; color: #fff; }
+    .btn-warning:hover:not(:disabled) { background: #d97706; }
+    .btn-danger { background: #991b1b; color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #dc2626; }
+    .btn-sm { padding: 4px 12px; font-size: 12px; border-radius: 8px; }
+
+    .form-inline { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 100px; }
+    .form-group label { font-size: 11px; font-weight: 600; color: #7e8ca3; text-transform: uppercase; }
+    .form-group input { background: #0f141e; border: 1px solid #1f2836; border-radius: 10px; padding: 8px 12px; color: #e2e8f0; font-size: 14px; outline: none; width: 100%; }
+    .form-group input:focus { border-color: #d91e36; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead { color: #7e8ca3; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+    th { text-align: left; padding: 10px 6px 8px 0; border-bottom: 1px solid #1f2836; }
+    td { padding: 12px 6px 12px 0; border-bottom: 1px solid #1a212e; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+
+    .status-badge { padding: 2px 12px; border-radius: 40px; font-size: 11px; font-weight: 700; text-transform: uppercase; display: inline-block; }
+    .status-open { background: #1e3a2a; color: #22c55e; }
+    .status-active { background: #3b2c1a; color: #f5c400; }
+    .status-done { background: #2a2633; color: #7e8ca3; }
+    .status-paid { background: #1a2a3a; color: #60a5fa; }
+    .status-disputed { background: #3b1a1a; color: #ef4444; }
+
+    .empty-state { text-align: center; padding: 24px 10px; color: #4a5568; }
+    .empty-state i { font-size: 28px; display: block; margin-bottom: 8px; }
+
+    .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; border-top: 1px solid #1f2836; padding-top: 12px; }
+    .filter-row select { background: #0f141e; border: 1px solid #1f2836; border-radius: 10px; padding: 6px 12px; color: #e2e8f0; outline: none; }
+    .filter-row label { font-size: 12px; color: #7e8ca3; display: flex; align-items: center; gap: 6px; }
+    .filter-row input[type="checkbox"] { accent-color: #d91e36; width: 18px; height: 18px; }
+
+    .auth-container { max-width: 400px; margin: 60px auto; background: #141a24; padding: 30px; border-radius: 16px; border: 1px solid #1f2836; }
+    .auth-container h2 { margin-bottom: 20px; color: #f5c400; }
+    .auth-container .form-group { margin-bottom: 16px; }
+    .auth-container .btn { width: 100%; justify-content: center; }
+    .auth-container .switch { color: #7e8ca3; font-size: 13px; margin-top: 12px; text-align: center; }
+    .auth-container .switch a { color: #d91e36; cursor: pointer; }
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+  <div id="authContainer" style="display:none;">
+    <!-- Same auth form as dashboard -->
+    <div class="auth-container">
+      <h2 id="authTitle">Login</h2>
+      <div class="form-group"><label>Username</label><input type="text" id="authUsername" /></div>
+      <div class="form-group"><label>Password</label><input type="password" id="authPassword" /></div>
+      <div class="form-group" id="authTornIdGroup" style="display:none;"><label>Torn ID</label><input type="text" id="authTornId" /></div>
+      <button class="btn btn-primary" id="authSubmitBtn">Login</button>
+      <div class="switch" id="authSwitch">Don't have an account? <a id="authToggle">Register</a></div>
+      <div id="authMessage" style="color:#ef4444; margin-top:12px; text-align:center;"></div>
+    </div>
+  </div>
+
+  <div id="mainApp" style="display:none;">
+    <header class="header">
+      <div class="logo"><i class="fas fa-skull-crossbones"></i><span>TORN LOSS MANAGER</span></div>
+      <div style="display:flex; gap:20px; align-items:center;">
+        <span style="color:#7e8ca3; font-size:13px;">Welcome, <span id="userNameDisplay">User</span></span>
+        <button class="btn btn-sm btn-danger" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        <div class="nav-links">
+          <a href="dashboard.html"><i class="fas fa-chart-pie"></i> Dashboard</a>
+          <a href="requests.html" class="active"><i class="fas fa-list-ul"></i> Requests</a>
+          <a href="admin.html"><i class="fas fa-user-cog"></i> Admin</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="stats-grid" id="requestStats">
+      <div class="stat-card"><div class="label">Total</div><div class="value" id="reqTotal">0</div></div>
+      <div class="stat-card" style="border-color:#22c55e;"><div class="label">Open</div><div class="value" id="reqOpen">0</div></div>
+      <div class="stat-card" style="border-color:#f5c400;"><div class="label">Active</div><div class="value" id="reqActive">0</div></div>
+      <div class="stat-card" style="border-color:#7e8ca3;"><div class="label">Done</div><div class="value" id="reqDone">0</div></div>
+      <div class="stat-card" style="border-color:#60a5fa;"><div class="label">Paid</div><div class="value" id="reqPaid">0</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span><i class="fas fa-plus-circle"></i> POST NEW REQUEST</span></div>
+      <div class="card-body">
+        <div class="form-inline">
+          <div class="form-group" style="flex:1.5;">
+            <label>Buyer (name or ID)</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="buyerName" placeholder="e.g. JohnDoe" style="flex:1;" />
+              <button class="btn btn-sm btn-primary" id="verifyBuyerBtn"><i class="fas fa-check-circle"></i> Verify</button>
+            </div>
+            <span id="verifyResult" style="font-size:12px;"></span>
+          </div>
+          <div class="form-group"><label>Loser ID</label><input type="text" id="loserId" placeholder="Target ID" /></div>
+          <div class="form-group"><label>Price / Hit ($)</label><input type="number" id="pricePerHit" placeholder="5000" min="1" /></div>
+          <div class="form-group"><label>Total Hits</label><input type="number" id="totalHits" placeholder="10" min="1" /></div>
+          <button class="btn btn-success" id="addRequestBtn"><i class="fas fa-plus"></i> Post</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span><i class="fas fa-list"></i> ALL REQUESTS</span></div>
+      <div class="card-body">
+        <div class="filter-row">
+          <label><input type="checkbox" id="showMyRequests" checked /> <i class="fas fa-user"></i> Only my requests</label>
+          <label>Status: <select id="statusFilter"><option value="all">All</option><option value="open">Open</option><option value="active">Active</option><option value="done">Done</option><option value="paid">Paid</option><option value="disputed">Disputed</option></select></label>
+          <button class="btn btn-primary" id="exportBtn"><i class="fas fa-file-download"></i> Export</button>
+          <button class="btn btn-warning" id="importBtn"><i class="fas fa-file-upload"></i> Import</button>
+          <input type="file" id="fileInput" accept=".json" style="display:none;" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Buyer</th><th>Loser</th><th>Price</th><th>Remaining</th><th>Status</th><th>Hitter</th></tr></thead>
+            <tbody id="requestsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── Same auth and API setup as dashboard ──────────────────────
+  const API = 'http://localhost:3000/api';
+  let token = localStorage.getItem('tornToken');
+  let currentUser = null;
+
+  function setAuthToken(t) { token = t; if (t) localStorage.setItem('tornToken', t); else localStorage.removeItem('tornToken'); }
+  function getHeaders() { return { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' }; }
+  async function apiFetch(endpoint, options = {}) {
+    const res = await fetch(`${API}${endpoint}`, { ...options, headers: { ...getHeaders(), ...(options.headers || {}) } });
+    if (res.status === 401) { setAuthToken(null); showAuth(); throw new Error('Session expired'); }
+    return res;
+  }
+
+  const $ = id => document.getElementById(id);
+  const authContainer = $('authContainer');
+  const mainApp = $('mainApp');
+  const authTitle = $('authTitle');
+  const authUsername = $('authUsername');
+  const authPassword = $('authPassword');
+  const authTornId = $('authTornId');
+  const authTornIdGroup = $('authTornIdGroup');
+  const authSubmitBtn = $('authSubmitBtn');
+  const authToggle = $('authToggle');
+  const authMessage = $('authMessage');
+  const userNameDisplay = $('userNameDisplay');
+  const logoutBtn = $('logoutBtn');
+
+  let isLogin = true;
+  function showAuth() { authContainer.style.display = 'block'; mainApp.style.display = 'none'; }
+  function showMainApp() { authContainer.style.display = 'none'; mainApp.style.display = 'block'; loadRequests(); }
+
+  authToggle.addEventListener('click', () => {
+    isLogin = !isLogin;
+    authTitle.textContent = isLogin ? 'Login' : 'Register';
+    authSubmitBtn.textContent = isLogin ? 'Login' : 'Register';
+    authToggle.textContent = isLogin ? 'Register' : 'Login';
+    authTornIdGroup.style.display = isLogin ? 'none' : 'block';
+    authMessage.textContent = '';
+  });
+
+  authSubmitBtn.addEventListener('click', async () => {
+    const username = authUsername.value.trim();
+    const password = authPassword.value.trim();
+    const tornId = authTornId.value.trim();
+    if (!username || !password) { authMessage.textContent = 'Username and password required'; return; }
+    try {
+      const endpoint = isLogin ? '/auth/login' : '/auth/register';
+      const body = isLogin ? { username, password } : { username, password, torn_id: tornId || undefined };
+      const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Auth failed');
+      setAuthToken(data.token);
+      currentUser = data.user;
+      userNameDisplay.textContent = currentUser.username;
+      showMainApp();
+    } catch (e) { authMessage.textContent = 'Error: ' + e.message; }
+  });
+
+  logoutBtn.addEventListener('click', () => { setAuthToken(null); currentUser = null; showAuth(); });
+
+  // ─── REQUESTS ──────────────────────────────────────────────────
+  async function loadRequests() {
+    const res = await apiFetch('/requests');
+    if (res.ok) {
+      const data = await res.json();
+      renderRequests(data);
+      renderStats(data);
+    }
+  }
+
+  function renderRequests(requests) {
+    const showMine = $('showMyRequests').checked;
+    const status = $('statusFilter').value;
+    let filtered = requests;
+    if (showMine && currentUser) {
+      filtered = filtered.filter(r => r.hitter_id === currentUser.id);
+    }
+    if (status !== 'all') {
+      filtered = filtered.filter(r => r.status === status);
+    }
+    if (!filtered.length) {
+      $('requestsTableBody').innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#4a5568;">No requests.</td></tr>`;
+      return;
+    }
+    let html = '';
+    filtered.forEach(r => {
+      const statusMap = { 'open': 'Open', 'active': 'Active', 'done': 'Done', 'paid': 'Paid', 'disputed': 'Disputed' };
+      const clsMap = { 'open': 'status-open', 'active': 'status-active', 'done': 'status-done', 'paid': 'status-paid', 'disputed': 'status-disputed' };
+      html += `<tr>
+        <td><strong>${r.buyer}</strong></td>
+        <td>${r.loser || '—'}</td>
+        <td>$${r.price}</td>
+        <td>${r.remaining} / ${r.total}</td>
+        <td><span class="status-badge ${clsMap[r.status] || 'status-open'}">${statusMap[r.status] || 'Open'}</span></td>
+        <td>${r.hitter_id || '—'}</td>
+      </tr>`;
+    });
+    $('requestsTableBody').innerHTML = html;
+  }
+
+  function renderStats(requests) {
+    $('reqTotal').textContent = requests.length;
+    $('reqOpen').textContent = requests.filter(r => r.status === 'open').length;
+    $('reqActive').textContent = requests.filter(r => r.status === 'active').length;
+    $('reqDone').textContent = requests.filter(r => r.status === 'done').length;
+    $('reqPaid').textContent = requests.filter(r => r.status === 'paid').length;
+  }
+
+  // ─── VERIFY BUYER ─────────────────────────────────────────────
+  $('verifyBuyerBtn').addEventListener('click', async () => {
+    const input = $('buyerName').value.trim();
+    if (!input) { $('verifyResult').textContent = '❌ Enter a name/ID'; return; }
+    $('verifyResult').textContent = '⏳';
+    try {
+      // Use a public Torn API call (we need the user's API key from settings)
+      const settingsRes = await apiFetch('/user/settings');
+      const settings = await settingsRes.json();
+      const apiKey = settings.api_key;
+      if (!apiKey) { $('verifyResult').textContent = '❌ No API key saved'; return; }
+      let userId, userName;
+      if (/^\d+$/.test(input)) {
+        const r = await fetch(`https://api.torn.com/v2/user/${input}/basic?key=${apiKey}`);
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        userId = d.profile.id; userName = d.profile.name || d.profile.username;
+      } else {
+        const r = await fetch(`https://api.torn.com/v2/user/search?q=${encodeURIComponent(input)}&key=${apiKey}`);
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        if (!d.users || !d.users.length) throw new Error('No users found');
+        userId = d.users[0].id; userName = d.users[0].name;
+      }
+      $('buyerName').value = userName;
+      $('verifyResult').textContent = `✅ ${userName} (ID: ${userId})`;
+      $('verifyResult').style.color = '#22c55e';
+      window._verifiedBuyerId = userId;
+    } catch (e) {
+      $('verifyResult').textContent = '❌ ' + e.message;
+      $('verifyResult').style.color = '#ef4444';
+    }
+  });
+
+  // ─── ADD REQUEST ──────────────────────────────────────────────
+  $('addRequestBtn').addEventListener('click', async () => {
+    const buyer = $('buyerName').value.trim();
+    const loser = $('loserId').value.trim();
+    const price = parseInt($('pricePerHit').value);
+    const total = parseInt($('totalHits').value);
+    if (!buyer) { alert('Enter a buyer name.'); return; }
+    if (price < 1 || total < 1) { alert('Price and total must be >=1.'); return; }
+    const buyerId = window._verifiedBuyerId || null;
+    try {
+      const res = await apiFetch('/requests', {
+        method: 'POST',
+        body: JSON.stringify({ buyer, buyer_id: buyerId, loser, price, total })
+      });
+      if (res.ok) {
+        $('hitFeedback') && ($('hitFeedback').textContent = '✅ Request posted');
+        $('buyerName').value = '';
+        $('loserId').value = '';
+        $('pricePerHit').value = '';
+        $('totalHits').value = '';
+        $('verifyResult').textContent = '';
+        await loadRequests();
+      } else {
+        const err = await res.json();
+        alert('❌ ' + err.error);
+      }
+    } catch (e) { alert('❌ ' + e.message); }
+  });
+
+  // ─── FILTERS ──────────────────────────────────────────────────
+  $('showMyRequests').addEventListener('change', loadRequests);
+  $('statusFilter').addEventListener('change', loadRequests);
+
+  // ─── EXPORT / IMPORT ──────────────────────────────────────────
+  $('exportBtn').addEventListener('click', async () => {
+    const res = await apiFetch('/admin/export');
+    if (res.ok) {
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `torn_backup_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+  });
+
+  $('importBtn').addEventListener('click', () => $('fileInput').click());
+  $('fileInput').addEventListener('change', async function(e) {
+    if (!this.files.length) return;
+    const file = this.files[0];
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.requests) throw new Error('Invalid format');
+        if (confirm(`Import ${data.requests.length} requests?`)) {
+          const res = await apiFetch('/admin/import', { method: 'POST', body: JSON.stringify(data) });
+          if (res.ok) { await loadRequests(); alert('✅ Import successful'); }
+          else { const err = await res.json(); alert('❌ ' + err.error); }
+        }
+      } catch (e) { alert('❌ ' + e.message); }
+    };
+    reader.readAsText(file);
+    this.value = '';
+  });
+
+  // ─── INIT ──────────────────────────────────────────────────────
+  (async function init() {
+    if (token) {
+      try {
+        const res = await apiFetch('/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          currentUser = data.user;
+          userNameDisplay.textContent = currentUser.username;
+          showMainApp();
+          return;
+        }
+      } catch (e) {}
+    }
+    showAuth();
+  })();
+</script>
+</body>
+</html>

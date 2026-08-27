@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin – Torn Loss Manager</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
+    body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
+    .app { max-width: 1400px; width: 100%; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1e26; border-radius: 8px; }
+    ::-webkit-scrollbar-thumb { background: #d91e36; border-radius: 8px; }
+
+    .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 0 12px; border-bottom: 2px solid #1e2532; margin-bottom: 20px; }
+    .logo { display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 800; }
+    .logo i { color: #d91e36; font-size: 32px; }
+    .logo span { background: linear-gradient(135deg, #d91e36, #f5c400); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-links { display: flex; gap: 20px; }
+    .nav-links a { color: #7e8ca3; text-decoration: none; font-weight: 600; padding: 6px 12px; border-radius: 8px; transition: 0.2s; }
+    .nav-links a:hover { color: #e2e8f0; background: #1f2836; }
+    .nav-links a.active { color: #fff; background: #d91e36; }
+
+    .card { background: #141a24; border-radius: 16px; border: 1px solid #1f2836; overflow: hidden; margin-bottom: 24px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #1f2836; font-weight: 700; font-size: 15px; color: #d1d8e3; background: #10161e; }
+    .card-header i { margin-right: 8px; color: #d91e36; }
+    .card-body { padding: 18px 20px 22px; }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 850px) { .row { grid-template-columns: 1fr; } }
+
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: 0.15s; background: #1f2836; color: #c8d0dc; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #d91e36; color: #fff; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-warning { background: #b45309; color: #fff; }
+    .btn-danger { background: #991b1b; color: #fff; }
+    .btn-sm { padding: 4px 12px; font-size: 12px; border-radius: 8px; }
+    .btn-xs { padding: 2px 8px; font-size: 10px; border-radius: 6px; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { color: #7e8ca3; font-weight: 600; font-size: 10px; text-transform: uppercase; }
+    th { text-align: left; padding: 8px 6px 6px 0; border-bottom: 1px solid #1f2836; }
+    td { padding: 10px 6px 10px 0; border-bottom: 1px solid #1a212e; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+
+    .status-badge { padding: 2px 10px; border-radius: 40px; font-size: 10px; font-weight: 700; text-transform: uppercase; display: inline-block; }
+    .status-open { background: #1e3a2a; color: #22c55e; }
+    .status-active { background: #3b2c1a; color: #f5c400; }
+    .status-done { background: #2a2633; color: #7e8ca3; }
+    .status-paid { background: #1a2a3a; color: #60a5fa; }
+    .status-disputed { background: #3b1a1a; color: #ef4444; }
+
+    .empty-state { text-align: center; padding: 24px 10px; color: #4a5568; }
+    .empty-state i { font-size: 28px; display: block; margin-bottom: 8px; }
+
+    .receipt-item { background: #1a1f2c; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; border-left: 3px solid #f5c400; font-size: 13px; }
+    .receipt-item .time { color: #7e8ca3; font-size: 11px; }
+
+    .auth-container { max-width: 400px; margin: 60px auto; background: #141a24; padding: 30px; border-radius: 16px; border: 1px solid #1f2836; }
+    .auth-container h2 { margin-bottom: 20px; color: #f5c400; }
+    .auth-container .form-group { margin-bottom: 16px; }
+    .auth-container .btn { width: 100%; justify-content: center; }
+    .auth-container .switch { color: #7e8ca3; font-size: 13px; margin-top: 12px; text-align: center; }
+    .auth-container .switch a { color: #d91e36; cursor: pointer; }
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+  <div id="authContainer" style="display:none;">
+    <div class="auth-container">
+      <h2 id="authTitle">Login</h2>
+      <div class="form-group"><label>Username</label><input type="text" id="authUsername" /></div>
+      <div class="form-group"><label>Password</label><input type="password" id="authPassword" /></div>
+      <div class="form-group" id="authTornIdGroup" style="display:none;"><label>Torn ID</label><input type="text" id="authTornId" /></div>
+      <button class="btn btn-primary" id="authSubmitBtn">Login</button>
+      <div class="switch" id="authSwitch">Don't have an account? <a id="authToggle">Register</a></div>
+      <div id="authMessage" style="color:#ef4444; margin-top:12px; text-align:center;"></div>
+    </div>
+  </div>
+
+  <div id="mainApp" style="display:none;">
+    <header class="header">
+      <div class="logo"><i class="fas fa-skull-crossbones"></i><span>TORN LOSS MANAGER</span></div>
+      <div style="display:flex; gap:20px; align-items:center;">
+        <span style="color:#7e8ca3; font-size:13px;">Welcome, <span id="userNameDisplay">User</span></span>
+        <button class="btn btn-sm btn-danger" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        <div class="nav-links">
+          <a href="dashboard.html"><i class="fas fa-chart-pie"></i> Dashboard</a>
+          <a href="requests.html"><i class="fas fa-list-ul"></i> Requests</a>
+          <a href="admin.html" class="active"><i class="fas fa-user-cog"></i> Admin</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="card-header"><span><i class="fas fa-list"></i> ALL REQUESTS</span></div>
+      <div class="card-body">
+        <div class="table-wrap" id="adminRequestsTableWrap"></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <div class="card-header"><span><i class="fas fa-receipt"></i> ALL RECEIPTS</span></div>
+        <div class="card-body"><div id="adminReceiptsList"><div class="empty-state"><i class="fas fa-receipt"></i> No receipts yet.</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span><i class="fas fa-file-alt"></i> ALL LOGS (last 50)</span></div>
+        <div class="card-body"><div id="adminLogsList"><div class="empty-state"><i class="fas fa-database"></i> No logs fetched yet.</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── Same auth and API setup ────────────────────────────────────
+  const API = 'http://localhost:3000/api';
+  let token = localStorage.getItem('tornToken');
+  let currentUser = null;
+  function setAuthToken(t) { token = t; if (t) localStorage.setItem('tornToken', t); else localStorage.removeItem('tornToken'); }
+  function getHeaders() { return { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' }; }
+  async function apiFetch(endpoint, options = {}) {
+    const res = await fetch(`${API}${endpoint}`, { ...options, headers: { ...getHeaders(), ...(options.headers || {}) } });
+    if (res.status === 401) { setAuthToken(null); showAuth(); throw new Error('Session expired'); }
+    return res;
+  }
+
+  const $ = id => document.getElementById(id);
+  const authContainer = $('authContainer');
+  const mainApp = $('mainApp');
+  const authTitle = $('authTitle');
+  const authUsername = $('authUsername');
+  const authPassword = $('authPassword');
+  const authTornId = $('authTornId');
+  const authTornIdGroup = $('authTornIdGroup');
+  const authSubmitBtn = $('authSubmitBtn');
+  const authToggle = $('authToggle');
+  const authMessage = $('authMessage');
+  const userNameDisplay = $('userNameDisplay');
+  const logoutBtn = $('logoutBtn');
+
+  let isLogin = true;
+  function showAuth() { authContainer.style.display = 'block'; mainApp.style.display = 'none'; }
+  function showMainApp() { authContainer.style.display = 'none'; mainApp.style.display = 'block'; loadAdmin(); }
+
+  authToggle.addEventListener('click', () => {
+    isLogin = !isLogin;
+    authTitle.textContent = isLogin ? 'Login' : 'Register';
+    authSubmitBtn.textContent = isLogin ? 'Login' : 'Register';
+    authToggle.textContent = isLogin ? 'Register' : 'Login';
+    authTornIdGroup.style.display = isLogin ? 'none' : 'block';
+    authMessage.textContent = '';
+  });
+
+  authSubmitBtn.addEventListener('click', async () => {
+    const username = authUsername.value.trim();
+    const password = authPassword.value.trim();
+    const tornId = authTornId.value.trim();
+    if (!username || !password) { authMessage.textContent = 'Username and password required'; return; }
+    try {
+      const endpoint = isLogin ? '/auth/login' : '/auth/register';
+      const body = isLogin ? { username, password } : { username, password, torn_id: tornId || undefined };
+      const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Auth failed');
+      setAuthToken(data.token);
+      currentUser = data.user;
+      userNameDisplay.textContent = currentUser.username;
+      showMainApp();
+    } catch (e) { authMessage.textContent = 'Error: ' + e.message; }
+  });
+
+  logoutBtn.addEventListener('click', () => { setAuthToken(null); currentUser = null; showAuth(); });
+
+  // ─── ADMIN RENDER ──────────────────────────────────────────────
+  async function loadAdmin() {
+    try {
+      // Load all requests
+      const reqRes = await apiFetch('/requests');
+      if (reqRes.ok) {
+        const requests = await reqRes.json();
+        renderAdminRequests(requests);
+      }
+      // Load all receipts
+      const recRes = await apiFetch('/receipts');
+      if (recRes.ok) {
+        const receipts = await recRes.json();
+        renderAdminReceipts(receipts);
+      }
+      // Load attack logs
+      const logRes = await apiFetch('/attack-logs');
+      if (logRes.ok) {
+        const logs = await logRes.json();
+        renderAdminLogs(logs);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function renderAdminRequests(requests) {
+    if (!requests.length) {
+      $('adminRequestsTableWrap').innerHTML = '<div class="empty-state"><i class="fas fa-list"></i> No requests.</div>';
+      return;
+    }
+    let html = `<div class="table-wrap"><table><thead><tr><th>ID</th><th>Buyer</th><th>Loser</th><th>Price</th><th>Remaining</th><th>Status</th><th>Hitter</th><th>Paid</th><th>Reported</th><th style="text-align:right;">Actions</th></tr></thead><tbody>`;
+    requests.forEach(r => {
+      const statusMap = { 'open': 'Open', 'active': 'Active', 'done': 'Done', 'paid': 'Paid', 'disputed': 'Disputed' };
+      const clsMap = { 'open': 'status-open', 'active': 'status-active', 'done': 'status-done', 'paid': 'status-paid', 'disputed': 'status-disputed' };
+      html += `<tr>
+        <td>${r.id}</td>
+        <td><strong>${r.buyer}</strong></td>
+        <td>${r.loser || '—'}</td>
+        <td>$${r.price}</td>
+        <td>${r.remaining}/${r.total}</td>
+        <td><span class="status-badge ${clsMap[r.status] || 'status-open'}">${statusMap[r.status] || 'Open'}</span></td>
+        <td>${r.hitter_id || '—'}</td>
+        <td>${r.paid ? '✅' : '❌'}</td>
+        <td>${r.reported ? '⚠️' : '—'}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="btn btn-xs btn-success toggle-paid" data-id="${r.id}"><i class="fas fa-dollar-sign"></i></button>
+          <button class="btn btn-xs btn-danger toggle-reported" data-id="${r.id}"><i class="fas fa-flag"></i></button>
+          <button class="btn btn-xs btn-warning set-disputed" data-id="${r.id}"><i class="fas fa-exclamation-triangle"></i></button>
+        </td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+    $('adminRequestsTableWrap').innerHTML = html;
+
+    // Attach admin events
+    document.querySelectorAll('.toggle-paid').forEach(b => b.addEventListener('click', () => togglePaid(parseInt(b.dataset.id))));
+    document.querySelectorAll('.toggle-reported').forEach(b => b.addEventListener('click', () => toggleReported(parseInt(b.dataset.id))));
+    document.querySelectorAll('.set-disputed').forEach(b => b.addEventListener('click', () => setDisputed(parseInt(b.dataset.id))));
+  }
+
+  function renderAdminReceipts(receipts) {
+    if (!receipts.length) {
+      $('adminReceiptsList').innerHTML = '<div class="empty-state"><i class="fas fa-receipt"></i> No receipts.</div>';
+      return;
+    }
+    let html = '';
+    receipts.slice(0, 20).forEach(r => {
+      html += `<div class="receipt-item"><strong>Request #${r.request_id}</strong> (${r.buyer}→${r.loser}): ${r.message}<br><span class="time">${new Date(r.timestamp).toLocaleString()}</span></div>`;
+    });
+    $('adminReceiptsList').innerHTML = html;
+  }
+
+  function renderAdminLogs(logs) {
+    if (!logs.length) {
+      $('adminLogsList').innerHTML = '<div class="empty-state"><i class="fas fa-database"></i> No logs.</div>';
+      return;
+    }
+    let html = `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Title</th><th>Details</th></tr></thead><tbody>`;
+    logs.slice(0, 50).forEach(a => {
+      const time = new Date(a.timestamp * 1000).toLocaleString();
+      const title = a.details?.title || 'Attack';
+      let detail = '—';
+      if (a.log_data && a.log_data.data) {
+        if (a.log_data.data.money_mugged !== undefined) detail = `💸 $${a.log_data.data.money_mugged}`;
+        else if (a.log_data.data.attacker !== undefined) detail = `attacker ${a.log_data.data.attacker}`;
+      }
+      html += `<tr><td>${time}</td><td><strong>${title}</strong></td><td>${detail}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+    $('adminLogsList').innerHTML = html;
+  }
+
+  // ─── ADMIN ACTIONS ──────────────────────────────────────────────
+  async function togglePaid(id) {
+    const res = await apiFetch(`/admin/requests/${id}/toggle-paid`, { method: 'PUT' });
+    if (res.ok) { await loadAdmin(); }
+  }
+  async function toggleReported(id) {
+    const res = await apiFetch(`/admin/requests/${id}/toggle-reported`, { method: 'PUT' });
+    if (res.ok) { await loadAdmin(); }
+  }
+  async function setDisputed(id) {
+    const res = await apiFetch(`/admin/requests/${id}/dispute`, { method: 'PUT' });
+    if (res.ok) { await loadAdmin(); }
+  }
+
+  // ─── INIT ──────────────────────────────────────────────────────
+  (async function init() {
+    if (token) {
+      try {
+        const res = await apiFetch('/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          currentUser = data.user;
+          userNameDisplay.textContent = currentUser.username;
+          showMainApp();
+          return;
+        }
+      } catch (e) {}
+    }
+    showAuth();
+  })();
+</script>
+</body>
+</html>
