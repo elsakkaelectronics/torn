@@ -267,32 +267,19 @@ app.get('/api/bars', authenticateApiKey, async (req, res) => {
 });
 
 // ─── REQUESTS ──────────────────────────────────────────────────────
-app.get('/api/requests', authenticateApiKey, async (req, res) => {
-  const rows = await all('SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC', req.user.id);
+app.get('/api/requests', authenticate, async (req, res) => {
+  let query = 'SELECT * FROM requests';
+  const params = [];
+  if (req.user.role !== 'admin') {
+    query += ' WHERE user_id = ?';
+    params.push(req.user.id);
+  }
+  query += ' ORDER BY created_at DESC';
+  const rows = await all(query, ...params);
   res.json(rows);
 });
 
-app.post('/api/requests', authenticateApiKey, async (req, res) => {
-  const { buyer, buyer_id, loser, price, total } = req.body;
-  if (!buyer || !price || !total) {
-    return res.status(400).json({ error: 'Buyer, price, and total required' });
-  }
-  const result = await run(`
-    INSERT INTO requests (user_id, buyer, buyer_id, loser, price, total, remaining)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `, req.user.id, buyer, buyer_id || null, loser || '', price, total, total);
-  const newReq = await get('SELECT * FROM requests WHERE id = ?', result.lastID);
-  res.json(newReq);
-});
 
-app.put('/api/requests/:id/accept', authenticateApiKey, async (req, res) => {
-  const reqData = await get('SELECT * FROM requests WHERE id = ? AND user_id = ?', req.params.id, req.user.id);
-  if (!reqData) return res.status(404).json({ error: 'Request not found' });
-  if (reqData.status !== 'open') return res.status(400).json({ error: 'Request is not open' });
-  await run('UPDATE requests SET status = "active", hitter_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', req.user.id, req.params.id);
-  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
-  res.json(updated);
-});
 
 app.put('/api/requests/:id/complete', authenticateApiKey, async (req, res) => {
   const reqData = await get('SELECT * FROM requests WHERE id = ? AND user_id = ?', req.params.id, req.user.id);
@@ -374,13 +361,18 @@ app.delete('/api/requests/:id', authenticateApiKey, async (req, res) => {
 });
 
 // ─── RECEIPTS ──────────────────────────────────────────────────────
-app.get('/api/receipts', authenticateApiKey, async (req, res) => {
-  const rows = await all(`
+app.get('/api/receipts', authenticate, async (req, res) => {
+  let query = `
     SELECT r.*, req.buyer, req.loser FROM receipts r
     JOIN requests req ON r.request_id = req.id
-    WHERE req.user_id = ?
-    ORDER BY r.timestamp DESC
-  `, req.user.id);
+  `;
+  const params = [];
+  if (req.user.role !== 'admin') {
+    query += ' WHERE req.user_id = ?';
+    params.push(req.user.id);
+  }
+  query += ' ORDER BY r.timestamp DESC';
+  const rows = await all(query, ...params);
   res.json(rows);
 });
 
@@ -390,11 +382,21 @@ app.get('/api/requests/:id/receipts', authenticateApiKey, async (req, res) => {
 });
 
 // ─── HIT LOGS ──────────────────────────────────────────────────────
-app.get('/api/hit-logs', authenticateApiKey, async (req, res) => {
-  const rows = await all(`
-    SELECT * FROM hit_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 20
-  `, req.user.id);
-  res.json(rows);
+app.get('/api/attack-logs', authenticate, async (req, res) => {
+  let query = 'SELECT * FROM attack_logs';
+  const params = [];
+  if (req.user.role !== 'admin') {
+    query += ' WHERE user_id = ?';
+    params.push(req.user.id);
+  }
+  query += ' ORDER BY timestamp DESC LIMIT 50';
+  const rows = await all(query, ...params);
+  const parsed = rows.map(row => ({
+    ...row,
+    log_data: JSON.parse(row.log_data),
+    details: row.details ? JSON.parse(row.details) : {}
+  }));
+  res.json(parsed);
 });
 
 app.post('/api/hit-logs', authenticateApiKey, async (req, res) => {
