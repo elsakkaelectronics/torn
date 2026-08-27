@@ -16,6 +16,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'torn-loss-manager-secret';
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 app.use(morgan('combined'));
 
 const limiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
