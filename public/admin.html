@@ -118,7 +118,7 @@
 
 <script>
   // ─── Same auth and API setup ────────────────────────────────────
-  const API = 'http://localhost:3000/api';
+  const API = 'https://tornlossmanagment.up.railway.app/api';
   let token = localStorage.getItem('tornToken');
   let currentUser = null;
   function setAuthToken(t) { token = t; if (t) localStorage.setItem('tornToken', t); else localStorage.removeItem('tornToken'); }
