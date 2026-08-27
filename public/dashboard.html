@@ -493,6 +493,8 @@
       const full = bar.full_time || bar.end || 0;
       const icon = icons[name] || 'circle';
       const color = colors[name] || 'gray';
+      if(bar == "energy"){
+      document.getelementById("statEnergy").innerHTML=bar.current)}
       html += `
         <div class="cooldown-item">
           <div class="label"><i class="fas fa-${icon}"></i> ${name.toUpperCase()}</div>
