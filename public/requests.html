@@ -333,7 +333,49 @@
   addRequestBtn.addEventListener('click', addRequest);
   showMyRequests.addEventListener('change', loadRequests);
   statusFilter.addEventListener('change', loadRequests);
+let currentRequestId = null;
 
+// Event delegation for submit-payment-btn
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.submit-payment-btn')) {
+    const btn = e.target.closest('.submit-payment-btn');
+    currentRequestId = btn.dataset.id;
+    document.getElementById('paymentModal').style.display = 'flex';
+  }
+});
+
+document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const txnId = document.getElementById('txnId').value.trim();
+  const proofUrl = document.getElementById('proofUrl').value.trim();
+  const amount = parseInt(document.getElementById('amountPaid').value);
+  const message = document.getElementById('paymentMessage').value.trim();
+
+  if (!txnId && !proofUrl) {
+    alert('Please provide at least a Transaction ID or Proof URL.');
+    return;
+  }
+  if (!amount || amount <= 0) {
+    alert('Please enter a valid amount.');
+    return;
+  }
+
+  try {
+    const res = await apiFetch(`/requests/${currentRequestId}/submit-payment`, {
+      method: 'POST',
+      body: JSON.stringify({ transaction_id: txnId, proof_url: proofUrl, amount, message })
+    });
+    if (res.ok) {
+      alert('✅ Payment proof submitted! The hitter will verify it.');
+      document.getElementById('paymentModal').style.display = 'none';
+      document.getElementById('paymentForm').reset();
+      await loadRequests(); // refresh the table
+    } else {
+      const err = await res.json();
+      alert('❌ ' + err.error);
+    }
+  } catch(e) { alert('❌ ' + e.message); }
+});
   // ─── INIT ──────────────────────────────────────────────────────
   (async function init() {
     const savedKey = localStorage.getItem('tornApiKey');
