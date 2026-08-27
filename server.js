@@ -67,6 +67,22 @@ async function initDb() {
   try {
     await run('PRAGMA foreign_keys = ON');
     const schema = `
+    CREATE TABLE IF NOT EXISTS payment_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  request_id INTEGER NOT NULL,
+  buyer_id INTEGER NOT NULL,
+  transaction_id TEXT,
+  proof_url TEXT,
+  amount INTEGER,
+  message TEXT,
+  status TEXT DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
+  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  verified_by INTEGER,
+  verified_at DATETIME,
+  FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE,
+  FOREIGN KEY (buyer_id) REFERENCES users(id),
+  FOREIGN KEY (verified_by) REFERENCES users(id)
+);
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         torn_id INTEGER UNIQUE,
@@ -423,7 +439,22 @@ app.delete('/api/requests/:id', authenticate, async (req, res) => {
   await run('DELETE FROM requests WHERE id = ?', req.params.id);
   res.json({ success: true });
 });
-
+CREATE TABLE IF NOT EXISTS payment_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  request_id INTEGER NOT NULL,
+  buyer_id INTEGER NOT NULL,
+  transaction_id TEXT,
+  proof_url TEXT,
+  amount INTEGER,
+  message TEXT,
+  status TEXT DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
+  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  verified_by INTEGER,
+  verified_at DATETIME,
+  FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE,
+  FOREIGN KEY (buyer_id) REFERENCES users(id),
+  FOREIGN KEY (verified_by) REFERENCES users(id)
+);
 // ─── RECEIPTS ──────────────────────────────────────────────────────
 app.get('/api/receipts', authenticate, async (req, res) => {
   let query = `
