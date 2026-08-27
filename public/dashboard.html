@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +7,7 @@
   <title>Dashboard – Torn Loss Manager</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <style>
-    /* ─── All styles – same as before ─── */
+    /* ─── Same styles as before ─── */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
     body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
     .app { max-width: 1400px; width: 100%; }
@@ -32,7 +33,6 @@
     .stat-card .value.gold { color: #f5c400; }
 
     .api-section { background: #141a24; border-radius: 16px; padding: 16px 22px; border: 1px solid #1f2836; margin-bottom: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
-    .api-section label { font-size: 12px; font-weight: 600; color: #7e8ca3; text-transform: uppercase; }
     .api-section input { background: #0f141e; border: 1px solid #1f2836; border-radius: 10px; padding: 8px 14px; color: #e2e8f0; font-size: 14px; flex: 2; min-width: 200px; outline: none; }
     .api-section input:focus { border-color: #d91e36; }
     .api-section .status-msg { font-size: 13px; color: #94a3b8; margin-left: auto; }
@@ -89,12 +89,11 @@
     .cooldown-item .sub { font-size: 12px; color: #7e8ca3; }
     .cooldown-item .bar { height: 6px; background: #1e2636; border-radius: 20px; margin-top: 6px; overflow: hidden; }
     .cooldown-item .bar-fill { height: 100%; border-radius: 20px; transition: width 0.3s; }
-    .cooldown-item .bar-fill.gold { background: linear-gradient(90deg, #d91e36, #f5c400); }
-    .cooldown-item .bar-fill.blue { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-    .cooldown-item .bar-fill.green { background: linear-gradient(90deg, #10b981, #34d399); }
-    .cooldown-item .bar-fill.red { background: linear-gradient(90deg, #ef4444, #f87171); }
-    .cooldown-item .bar-fill.purple { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
-    .cooldown-item .bar-fill.gray { background: linear-gradient(90deg, #6b7280, #9ca3af); }
+    .cooldown-item .bar-fill.energy { background: linear-gradient(90deg, #d91e36, #f5c400); }
+    .cooldown-item .bar-fill.nerve { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .cooldown-item .bar-fill.happy { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .cooldown-item .bar-fill.life { background: linear-gradient(90deg, #10b981, #34d399); }
+    .cooldown-item .bar-fill.chain { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
 
     .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; border-top: 1px solid #1f2836; padding-top: 12px; }
     .filter-row label { font-size: 12px; color: #7e8ca3; display: flex; align-items: center; gap: 6px; }
@@ -110,101 +109,101 @@
     .file-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
     .file-actions .btn { font-size: 12px; padding: 6px 14px; }
 
-    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0d12; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #f5c400; z-index: 9999; flex-direction: column; gap: 20px; }
-    #loading .spinner { width: 50px; height: 50px; border: 4px solid #1f2836; border-top-color: #d91e36; border-radius: 50%; animation: spin 1s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .debug-panel { background: #0f141e; border-radius: 8px; padding: 12px; font-size: 12px; color: #7e8ca3; margin-top: 12px; border: 1px solid #1f2836; max-height: 200px; overflow: auto; white-space: pre-wrap; }
+    .debug-panel summary { cursor: pointer; color: #94a3b8; font-weight: 600; }
   </style>
 </head>
 <body>
-<div id="loading"><div class="spinner"></div><span>Loading...</span></div>
-
-<div class="app" id="app">
-  <div id="mainApp" style="display:none;">
-    <header class="header">
-      <div class="logo"><i class="fas fa-skull-crossbones"></i><span>TORN LOSS MANAGER</span></div>
-      <div style="display:flex; gap:20px; align-items:center;">
-        <span style="color:#7e8ca3; font-size:13px;">Welcome, <span id="userNameDisplay">User</span></span>
-        <button class="btn btn-sm btn-danger" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
-        <div class="nav-links">
-          <a href="dashboard.html" class="active"><i class="fas fa-chart-pie"></i> Dashboard</a>
-          <a href="requests.html"><i class="fas fa-list-ul"></i> Requests</a>
-          <a href="admin.html"><i class="fas fa-user-cog"></i> Admin</a>
-        </div>
-      </div>
-    </header>
-
-    <div class="api-section" id="apiKeySection">
-      <label><i class="fas fa-key"></i> Torn API Key</label>
-      <input type="password" id="apiKeyInput" placeholder="Enter your Torn API key" />
-      <button class="btn btn-primary" id="connectBtn"><i class="fas fa-link"></i> Connect</button>
-      <span class="status-msg" id="apiStatus">⏳ Enter your key</span>
+<div class="app">
+  <header class="header">
+    <div class="logo"><i class="fas fa-skull-crossbones"></i><span>TORN LOSS MANAGER</span></div>
+    <div class="nav-links">
+      <a href="dashboard.html" class="active"><i class="fas fa-chart-pie"></i> Dashboard</a>
+      <a href="requests.html"><i class="fas fa-list-ul"></i> Requests</a>
+      <a href="admin.html"><i class="fas fa-user-cog"></i> Admin</a>
     </div>
+  </header>
 
-    <div id="content" style="display:none;">
-      <div class="stats-grid">
-        <div class="stat-card"><div class="label"><i class="fas fa-bolt"></i> Energy</div><div class="value gold" id="statEnergy">--</div><div class="sub" id="statEnergyMax">/ --</div></div>
-        <div class="stat-card"><div class="label"><i class="fas fa-fist-raised"></i> Attacks</div><div class="value" id="statHits">0</div><div class="sub">from logs</div></div>
-        <div class="stat-card"><div class="label"><i class="fas fa-coins"></i> Total Profit</div><div class="value green" id="statProfit">$0</div></div>
-        <div class="stat-card"><div class="label"><i class="fas fa-tasks"></i> Active Orders</div><div class="value" id="statActiveOrders">0</div><div class="sub">assigned to you</div></div>
+  <div class="api-section">
+    <label><i class="fas fa-key"></i> API Key</label>
+    <input type="password" id="apiKeyInput" placeholder="Enter your Torn API key" />
+    <button id="refreshApiBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+    <span class="status-msg" id="apiStatus">⏳ idle</span>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><div class="label"><i class="fas fa-bolt"></i> Energy</div><div class="value gold" id="statEnergy">--</div><div class="sub" id="statEnergyMax">/ --</div></div>
+    <div class="stat-card"><div class="label"><i class="fas fa-fist-raised"></i> Attacks</div><div class="value" id="statHits">0</div><div class="sub">from logs</div></div>
+    <div class="stat-card"><div class="label"><i class="fas fa-coins"></i> Total Profit</div><div class="value green" id="statProfit">$0</div></div>
+    <div class="stat-card"><div class="label"><i class="fas fa-tasks"></i> Active Orders</div><div class="value" id="statActiveOrders">0</div><div class="sub">assigned to you</div></div>
+  </div>
+
+  <!-- URL Generator -->
+  <div class="card">
+    <div class="card-header"><span><i class="fas fa-link"></i> GENERATE SHAREABLE LINK</span></div>
+    <div class="card-body">
+      <div class="form-inline">
+        <div class="form-group" style="flex:1.5;"><label>Buyer (optional)</label><input type="text" id="dashboardBuyer" placeholder="e.g. JohnDoe" /></div>
+        <div class="form-group" style="flex:3;"><label>Generated URL</label><input type="text" id="dashboardUrl" readonly /></div>
       </div>
-
-      <div class="card">
-        <div class="card-header"><span><i class="fas fa-link"></i> GENERATE SHAREABLE LINK</span></div>
-        <div class="card-body">
-          <div class="form-inline">
-            <div class="form-group" style="flex:1.5;"><label>Buyer (optional)</label><input type="text" id="dashboardBuyer" placeholder="e.g. JohnDoe" /></div>
-            <div class="form-group" style="flex:3;"><label>Generated URL</label><input type="text" id="dashboardUrl" readonly /></div>
-          </div>
-          <div style="display:flex; gap:12px; flex-wrap:wrap;">
-            <button class="btn btn-warning" id="dashboardLoserBtn"><i class="fas fa-skull"></i> Loser Link</button>
-            <button class="btn btn-primary" id="dashboardFullBtn"><i class="fas fa-user"></i> Full Link</button>
-            <button class="btn btn-success" id="dashboardCopyBtn" style="display:none;"><i class="fas fa-copy"></i> Copy</button>
-            <span id="dashboardFeedback" style="font-size:13px; color:#7e8ca3;"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><span><i class="fas fa-clock"></i> COOLDOWNS & BARS</span></div>
-        <div class="card-body"><div class="cooldowns-grid" id="cooldownsGrid"></div></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <span><i class="fas fa-crosshairs"></i> YOUR REQUESTS</span>
-          <span style="font-size:12px; color:#7e8ca3;">
-            <div class="file-actions">
-              <button class="btn btn-sm btn-primary" id="exportJsonBtn"><i class="fas fa-file-download"></i> Export JSON</button>
-              <button class="btn btn-sm btn-warning" id="importJsonBtn"><i class="fas fa-file-upload"></i> Import JSON</button>
-              <input type="file" id="fileInput" accept=".json" style="display:none;" />
-            </div>
-          </span>
-        </div>
-        <div class="card-body">
-          <div class="filter-row">
-            <label><input type="checkbox" id="showOnlyActive" /> <i class="fas fa-user-check"></i> Only active (assigned to me)</label>
-            <button class="btn btn-sm btn-primary" id="sellLossBtn"><i class="fas fa-skull"></i> Sell Loss (-25E)</button>
-            <span id="hitFeedback" style="font-size:13px; color:#7e8ca3; margin-left:8px;">Ready</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Buyer</th><th>Loser</th><th>Price</th><th>Remaining</th><th>Receipts</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
-              <tbody id="hitterTableBody"></tbody>
-            </table>
-          </div>
-          <div style="font-size:12px; color:#7e8ca3; margin-top:8px;">
-            <i class="fas fa-info-circle"></i> <strong>Accept</strong> = take order · <strong>Verify</strong> = check attack logs + generate receipt · <strong>Complete</strong> = mark done · <strong>Paid</strong> = after payment
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><span><i class="fas fa-history"></i> RECENT HITS (LOCAL)</span></div>
-        <div class="card-body"><div id="hitLog"><div class="empty-state"><i class="fas fa-scroll"></i> No hits recorded yet.</div></div></div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="btn btn-warning" id="dashboardLoserBtn"><i class="fas fa-skull"></i> Loser Link</button>
+        <button class="btn btn-primary" id="dashboardFullBtn"><i class="fas fa-user"></i> Full Link</button>
+        <button class="btn btn-success" id="dashboardCopyBtn" style="display:none;"><i class="fas fa-copy"></i> Copy</button>
+        <span id="dashboardFeedback" style="font-size:13px; color:#7e8ca3;"></span>
       </div>
     </div>
   </div>
 
+  <!-- Cooldowns -->
+  <div class="card">
+    <div class="card-header"><span><i class="fas fa-clock"></i> COOLDOWNS & BARS</span></div>
+    <div class="card-body"><div class="cooldowns-grid" id="cooldownsGrid"></div></div>
+  </div>
+
+  <!-- Hitter's Table -->
+  <div class="card">
+    <div class="card-header">
+      <span><i class="fas fa-crosshairs"></i> YOUR REQUESTS</span>
+      <span style="font-size:12px; color:#7e8ca3;">
+        <div class="file-actions">
+          <button class="btn btn-sm btn-primary" id="exportJsonBtn"><i class="fas fa-file-download"></i> Export JSON</button>
+          <button class="btn btn-sm btn-warning" id="importJsonBtn"><i class="fas fa-file-upload"></i> Import JSON</button>
+          <input type="file" id="fileInput" accept=".json" style="display:none;" />
+        </div>
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="filter-row">
+        <label><input type="checkbox" id="showOnlyActive" /> <i class="fas fa-user-check"></i> Only active (assigned to me)</label>
+        <button class="btn btn-sm btn-primary" id="sellLossBtn"><i class="fas fa-skull"></i> Sell Loss (-25E)</button>
+        <span id="hitFeedback" style="font-size:13px; color:#7e8ca3; margin-left:8px;">Ready</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Buyer</th><th>Loser</th><th>Price</th><th>Remaining</th><th>Receipts</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
+          <tbody id="hitterTableBody"></tbody>
+        </table>
+      </div>
+      <div style="font-size:12px; color:#7e8ca3; margin-top:8px;">
+        <i class="fas fa-info-circle"></i> <strong>Accept</strong> = take order · <strong>Verify</strong> = check attack logs + generate receipt · <strong>Complete</strong> = mark done · <strong>Paid</strong> = after payment
+      </div>
+
+      <!-- Debug Panel (expandable) -->
+      <details class="debug-panel">
+        <summary><i class="fas fa-bug"></i> Debug: Show all requests (JSON)</summary>
+        <pre id="debugJson">Loading...</pre>
+      </details>
+    </div>
+  </div>
+
+  <!-- Recent Hits -->
+  <div class="card">
+    <div class="card-header"><span><i class="fas fa-history"></i> RECENT HITS (LOCAL)</span></div>
+    <div class="card-body"><div id="hitLog"><div class="empty-state"><i class="fas fa-scroll"></i> No hits recorded yet.</div></div></div>
+  </div>
+
+  <!-- Receipts Modal -->
   <div id="receiptsModal" class="receipts-modal">
     <div class="receipts-content">
       <span class="close" onclick="document.getElementById('receiptsModal').style.display='none'">&times;</span>
@@ -216,25 +215,23 @@
 </div>
 
 <script>
-  // ─── API BASE ──────────────────────────────────────────────────────
-  const API = 'http://localhost:3000/api';
+  // ─── CONFIG ──────────────────────────────────────────────────────
+  const STORAGE_KEY = 'tornLossManagerAPIv2';
+  const HIT_COST = 25;
 
-  // ─── STATE ──────────────────────────────────────────────────────────
-  let currentUser = null;
-  let currentSettings = null;
-  let requests = [];
+  // ─── STATE ──────────────────────────────────────────────────────
+  let state = {
+    energy: 100, maxEnergy: 150, interval: 600, tickTime: 0, fullTime: 0,
+    profit: 0, totalHits: 0, hitLog: [], requests: [], apiAttacks: [],
+    apiKey: '', currentHitterId: null,
+    nerve: {}, happy: {}, life: {}, chain: {}
+  };
 
-  // ─── DOM REFS ──────────────────────────────────────────────────────
+  // ─── DOM REFS ──────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
-  const loading = $('loading');
-  const mainApp = $('mainApp');
-  const apiKeySection = $('apiKeySection');
-  const content = $('content');
   const apiKeyInput = $('apiKeyInput');
-  const connectBtn = $('connectBtn');
+  const refreshApiBtn = $('refreshApiBtn');
   const apiStatus = $('apiStatus');
-  const userNameDisplay = $('userNameDisplay');
-  const logoutBtn = $('logoutBtn');
   const statEnergy = $('statEnergy');
   const statEnergyMax = $('statEnergyMax');
   const statHits = $('statHits');
@@ -246,120 +243,192 @@
   const hitFeedback = $('hitFeedback');
   const sellLossBtn = $('sellLossBtn');
   const showOnlyActive = $('showOnlyActive');
+
   const dashboardBuyer = $('dashboardBuyer');
   const dashboardUrl = $('dashboardUrl');
+  const dashboardLoserBtn = $('dashboardLoserBtn');
+  const dashboardFullBtn = $('dashboardFullBtn');
   const dashboardCopyBtn = $('dashboardCopyBtn');
   const dashboardFeedback = $('dashboardFeedback');
+
   const receiptsModal = $('receiptsModal');
   const receiptsList = $('receiptsList');
   const copyAllReceiptsBtn = $('copyAllReceiptsBtn');
   const exportJsonBtn = $('exportJsonBtn');
   const importJsonBtn = $('importJsonBtn');
   const fileInput = $('fileInput');
+  const debugJson = $('debugJson');
 
-  // ─── HELPERS ──────────────────────────────────────────────────────
-  function getHeaders(apiKey) {
-    return { 'Content-Type': 'application/json', 'X-API-Key': apiKey };
+  // ─── STORAGE ────────────────────────────────────────────────────
+  function loadState() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        state = Object.assign(state, parsed);
+        if (!state.hitLog) state.hitLog = [];
+        if (!state.requests) state.requests = [];
+        if (!state.apiAttacks) state.apiAttacks = [];
+        state.requests.forEach(r => {
+          if (!r.receipts) r.receipts = [];
+          if (r.buyerId === undefined) r.buyerId = null;
+          if (r.paid === undefined) r.paid = false;
+          if (r.reported === undefined) r.reported = false;
+        });
+        if (state.apiKey) apiKeyInput.value = state.apiKey;
+        return true;
+      } catch(e) {}
+    }
+    // Default seed with a sample open request
+    state.requests = [
+      { id: 1, buyer: 'CrimsonKing', buyerId: null, loser: '12345', price: 7500, total: 20, remaining: 20, status: 'open', hitter: null, receipts: [], paid: false, reported: false },
+      { id: 2, buyer: 'ShadowWeaver', buyerId: null, loser: '67890', price: 10000, total: 10, remaining: 10, status: 'open', hitter: null, receipts: [], paid: false, reported: false }
+    ];
+    state.energy = 100;
+    state.maxEnergy = 150;
+    state.nerve = { current: 0, maximum: 35, interval: 300, tick_time: 0, full_time: 0 };
+    state.happy = { current: 0, maximum: 100, interval: 900, tick_time: 0, full_time: 0 };
+    state.life = { current: 0, maximum: 1000, interval: 300, tick_time: 0, full_time: 0 };
+    state.chain = { current: 0, max: 10, timeout: 0, cooldown: 0, end: 0 };
+    saveState();
+    return true;
+  }
+  function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+  // ─── EXPORT / IMPORT JSON ─────────────────────────────────────
+  function exportJson() {
+    const data = JSON.stringify(state, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `torn_loss_manager_backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    hitFeedback.textContent = '📦 Backup exported.';
   }
 
-  async function apiFetch(endpoint, options = {}) {
-    const apiKey = localStorage.getItem('tornApiKey');
-    if (!apiKey) throw new Error('No API key');
-    const res = await fetch(`${API}${endpoint}`, {
-      ...options,
-      headers: { ...getHeaders(apiKey), ...(options.headers || {}) }
+  function importJson(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const imported = JSON.parse(e.target.result);
+        if (!imported.requests || !Array.isArray(imported.requests)) {
+          throw new Error('Invalid file: missing "requests" array.');
+        }
+        if (confirm(`Replace all current data with the backup (${imported.requests.length} requests)?`)) {
+          state = Object.assign(state, imported);
+          if (!state.hitLog) state.hitLog = [];
+          if (!state.apiAttacks) state.apiAttacks = [];
+          state.requests.forEach(r => {
+            if (!r.receipts) r.receipts = [];
+            if (r.buyerId === undefined) r.buyerId = null;
+            if (r.paid === undefined) r.paid = false;
+            if (r.reported === undefined) r.reported = false;
+          });
+          saveState();
+          renderAll();
+          hitFeedback.textContent = `✅ Imported ${state.requests.length} requests.`;
+        }
+      } catch(err) {
+        alert('❌ Invalid JSON file: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ─── API HELPERS ──────────────────────────────────────────────
+  async function fetchMyId(key) {
+    try {
+      const r = await fetch(`https://api.torn.com/v2/user/basic?key=${key}`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      return d.profile.id;
+    } catch(e) { console.error(e); return null; }
+  }
+
+  // ─── RENDER ─────────────────────────────────────────────────────
+  function renderCooldowns() {
+    const bars = [
+      { key: 'energy', label: 'Energy', icon: 'bolt', color: 'energy', current: state.energy, max: state.maxEnergy, tick: state.tickTime, full: state.fullTime },
+      { key: 'nerve', label: 'Nerve', icon: 'brain', color: 'nerve', current: state.nerve.current || 0, max: state.nerve.maximum || 35, tick: state.nerve.tick_time || 0, full: state.nerve.full_time || 0 },
+      { key: 'happy', label: 'Happy', icon: 'smile', color: 'happy', current: state.happy.current || 0, max: state.happy.maximum || 100, tick: state.happy.tick_time || 0, full: state.happy.full_time || 0 },
+      { key: 'life', label: 'Life', icon: 'heart', color: 'life', current: state.life.current || 0, max: state.life.maximum || 1000, tick: state.life.tick_time || 0, full: state.life.full_time || 0 },
+      { key: 'chain', label: 'Chain', icon: 'link', color: 'chain', current: state.chain.current || 0, max: state.chain.max || 10, tick: state.chain.cooldown || 0, full: state.chain.end || 0 }
+    ];
+    let html = '';
+    bars.forEach(b => {
+      const pct = b.max > 0 ? (b.current / b.max) * 100 : 0;
+      const tickDisplay = (b.tick !== undefined && b.tick > 0) ? `${b.tick}s` : 'Ready';
+      const fullDisplay = (b.full !== undefined && b.full > 0) ? `${b.full}s` : '—';
+      html += `
+        <div class="cooldown-item">
+          <div class="label"><i class="fas fa-${b.icon}"></i> ${b.label}</div>
+          <div class="value">${b.current} / ${b.max}</div>
+          <div class="sub">Next tick: ${tickDisplay} · Full: ${fullDisplay}</div>
+          <div class="bar"><div class="bar-fill ${b.color}" style="width:${Math.min(100, pct)}%;"></div></div>
+        </div>
+      `;
     });
-    if (res.status === 401) {
-      localStorage.removeItem('tornApiKey');
-      throw new Error('Invalid API key');
-    }
-    return res;
+    cooldownsGrid.innerHTML = html;
   }
 
-  // ─── AUTH ──────────────────────────────────────────────────────────
-  async function connect(apiKey) {
-    apiStatus.textContent = '⏳ Connecting...';
-    try {
-      const res = await fetch(`${API}/me`, { headers: { 'X-API-Key': apiKey } });
-      if (!res.ok) throw new Error('Invalid API key');
-      const data = await res.json();
-      currentUser = data.user;
-      currentSettings = data.settings || { energy: 100, max_energy: 150, profit: 0, total_hits: 0 };
-      localStorage.setItem('tornApiKey', apiKey);
-      userNameDisplay.textContent = currentUser.username || `User ${currentUser.torn_id}`;
-      apiKeySection.style.display = 'none';
-      content.style.display = 'block';
-      apiStatus.textContent = '✅ Connected';
-      await loadAllData();
-    } catch (e) {
-      apiStatus.textContent = '❌ ' + e.message;
-    }
-  }
-
-  function logout() {
-    localStorage.removeItem('tornApiKey');
-    currentUser = null;
-    currentSettings = null;
-    apiKeySection.style.display = 'flex';
-    content.style.display = 'none';
-    apiStatus.textContent = '⏳ Enter your key';
-    apiKeyInput.value = '';
-  }
-
-  // ─── LOAD DATA ──────────────────────────────────────────────────
-  async function loadAllData() {
-    try {
-      await loadSettings();
-      await loadRequests();
-      await loadHitLogs();
-      await loadBars();
-    } catch (e) { console.error(e); }
-  }
-
-  async function loadSettings() {
-    const res = await apiFetch('/me');
-    if (res.ok) {
-      const data = await res.json();
-      currentUser = data.user;
-      currentSettings = data.settings || { energy: 100, max_energy: 150, profit: 0, total_hits: 0 };
-      statEnergy.textContent = currentSettings.energy || 0;
-      statEnergyMax.textContent = `/ ${currentSettings.max_energy || 150}`;
-      statProfit.textContent = '$' + (currentSettings.profit || 0).toLocaleString();
-      statHits.textContent = currentSettings.total_hits || 0;
-    }
-  }
-
-  async function loadRequests() {
-    const res = await apiFetch('/requests');
-    if (res.ok) {
-      requests = await res.json();
-      renderHitterTable(requests);
-      renderStats(requests);
-    }
-  }
-
-  function renderStats(requests) {
-    const activeCount = requests.filter(r => r.status === 'active' && r.hitter_id === currentUser?.id).length;
+  function renderStats() {
+    const max = state.maxEnergy || 150;
+    statEnergy.textContent = Math.floor(state.energy);
+    statEnergyMax.textContent = `/ ${max}`;
+    statHits.textContent = state.totalHits || 0;
+    statProfit.textContent = '$' + (state.profit || 0).toLocaleString();
+    const activeCount = state.requests.filter(r => r.status === 'active' && r.hitter === state.currentHitterId).length;
     statActiveOrders.textContent = activeCount;
+    sellLossBtn.disabled = (state.energy < HIT_COST);
   }
 
-  function renderHitterTable(requests) {
-    const showOnlyActive = $('showOnlyActive').checked;
+  function renderHitterTable() {
+    // ── Show open requests and assigned requests ──
     let rows = [];
-    if (showOnlyActive) {
-      rows = requests.filter(r => r.status === 'active' && r.hitter_id === currentUser?.id);
-    } else {
-      rows = requests.filter(r => r.status === 'open' || r.hitter_id === currentUser?.id);
+    // Always show open requests (anyone can accept)
+    const openRequests = state.requests.filter(r => r.status === 'open');
+    // Show assigned requests if we have a hitter ID
+    let assignedRequests = [];
+    if (state.currentHitterId) {
+      assignedRequests = state.requests.filter(r => r.hitter === state.currentHitterId && r.status !== 'open');
     }
+
+    // Apply "Only active" filter if checked
+    if (showOnlyActive.checked) {
+      // Only show active requests assigned to me
+      if (state.currentHitterId) {
+        rows = state.requests.filter(r => r.status === 'active' && r.hitter === state.currentHitterId);
+      } else {
+        rows = [];
+      }
+    } else {
+      // Show open + all assigned (any status)
+      rows = [...openRequests, ...assignedRequests];
+    }
+
     if (!rows.length) {
       hitterTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#4a5568;">No requests to show.</td></tr>`;
+      updateDebugJson();
       return;
     }
+
     let html = '';
     rows.forEach(r => {
-      const statusMap = { 'open': { cls: 'status-open', label: 'Open' }, 'active': { cls: 'status-active', label: 'Active' }, 'done': { cls: 'status-done', label: 'Done' }, 'paid': { cls: 'status-paid', label: 'Paid' }, 'disputed': { cls: 'status-disputed', label: 'Disputed' } };
+      if (!r.receipts) r.receipts = [];
+      const statusMap = {
+        'open': { cls: 'status-open', label: 'Open' },
+        'active': { cls: 'status-active', label: 'Active' },
+        'done': { cls: 'status-done', label: 'Done' },
+        'paid': { cls: 'status-paid', label: 'Paid' },
+        'disputed': { cls: 'status-disputed', label: 'Disputed' }
+      };
       const st = statusMap[r.status] || statusMap['open'];
-      const isMyHit = currentUser && r.hitter_id === currentUser.id;
+      const isMyHit = state.currentHitterId && r.hitter === state.currentHitterId;
       const isOpen = r.status === 'open';
 
       let actions = '';
@@ -373,13 +442,13 @@
         `;
       } else if (isMyHit && r.status === 'done') {
         actions = `<button class="btn btn-success btn-sm paid-btn" data-id="${r.id}"><i class="fas fa-dollar-sign"></i> Mark Paid</button>`;
-      } else if (['active','done','paid'].includes(r.status) && r.hitter_id) {
-        actions = `<span style="color:#7e8ca3; font-size:12px;">assigned to ${r.hitter_id}</span>`;
+      } else if (r.status === 'active' || r.status === 'done' || r.status === 'paid') {
+        actions = `<span style="color:#7e8ca3; font-size:12px;">assigned to ${r.hitter || 'someone'}</span>`;
       } else {
         actions = `<span style="color:#4a5568;">—</span>`;
       }
 
-      const receiptCount = r.receipts ? r.receipts.length : 0;
+      const receiptCount = r.receipts.length;
       const receiptBtn = receiptCount > 0 ? `<button class="btn btn-sm btn-info view-receipts-btn" data-id="${r.id}"><i class="fas fa-receipt"></i> ${receiptCount}</button>` : '—';
 
       html += `<tr>
@@ -395,331 +464,309 @@
     hitterTableBody.innerHTML = html;
 
     // Attach events
-    document.querySelectorAll('.accept-btn').forEach(b => b.addEventListener('click', () => acceptRequest(parseInt(b.dataset.id))));
-    document.querySelectorAll('.verify-btn').forEach(b => b.addEventListener('click', () => verifyHit(parseInt(b.dataset.id))));
-    document.querySelectorAll('.complete-btn').forEach(b => b.addEventListener('click', () => completeRequest(parseInt(b.dataset.id))));
-    document.querySelectorAll('.paid-btn').forEach(b => b.addEventListener('click', () => markPaid(parseInt(b.dataset.id))));
-    document.querySelectorAll('.view-receipts-btn').forEach(b => b.addEventListener('click', () => showReceipts(parseInt(b.dataset.id))));
+    hitterTableBody.querySelectorAll('.accept-btn').forEach(b => b.addEventListener('click', () => acceptRequest(parseInt(b.dataset.id))));
+    hitterTableBody.querySelectorAll('.verify-btn').forEach(b => b.addEventListener('click', () => verifyHit(parseInt(b.dataset.id))));
+    hitterTableBody.querySelectorAll('.complete-btn').forEach(b => b.addEventListener('click', () => completeRequest(parseInt(b.dataset.id))));
+    hitterTableBody.querySelectorAll('.paid-btn').forEach(b => b.addEventListener('click', () => markPaid(parseInt(b.dataset.id))));
+    hitterTableBody.querySelectorAll('.view-receipts-btn').forEach(b => b.addEventListener('click', () => showReceipts(parseInt(b.dataset.id))));
+
+    updateDebugJson();
   }
 
-  // ─── BARS ────────────────────────────────────────────────────────
-async function loadBars() {
-  try {
-    const res = await apiFetch('/bars');
-    if (!res.ok) {
-      cooldownsGrid.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i> HTTP ${res.status}</div>`;
-      return;
-    }
-    const data = await res.json();
-    console.log('✅ Bars response:', data);
-    if (!data || typeof data !== 'object') {
-      cooldownsGrid.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i> No data</div>`;
-      return;
-    }
-    renderCooldowns(data);
-  } catch (e) {
-    console.error('loadBars error:', e);
-    cooldownsGrid.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i> ${e.message}</div>`;
-  }
-}
-
-function renderCooldowns(bars) {
-  if (!bars || typeof bars !== 'object') {
-    cooldownsGrid.innerHTML = '<div class="empty-state"><i class="fas fa-database"></i> No cooldown data</div>';
-    return;
-  }
-  const barNames = ['energy', 'nerve', 'happy', 'life', 'chain'];
-  const icons = {
-    energy: 'bolt',
-    nerve: 'brain',
-    happy: 'smile',
-    life: 'heart',
-    chain: 'link'
-  };
-  const colors = {
-    energy: 'gold',
-    nerve: 'blue',
-    happy: 'green',
-    life: 'red',
-    chain: 'purple'
-  };
-  let html = '';
-  barNames.forEach(name => {
-    const bar = bars[name];
-    if (!bar) return;
-    const current = bar.current || 0;
-    const max = bar.maximum || bar.max || 100;
-    const pct = max > 0 ? (current / max) * 100 : 0;
-    const tick = bar.tick_time || bar.cooldown || 0;
-    const full = bar.full_time || bar.end || 0;
-    const icon = icons[name] || 'circle';
-    const color = colors[name] || 'gray';
-    html += `
-      <div class="cooldown-item">
-        <div class="label"><i class="fas fa-${icon}"></i> ${name.toUpperCase()}</div>
-        <div class="value">${current} / ${max}</div>
-        <div class="sub">Next tick: ${tick}s · Full: ${full > 0 ? full + 's' : '—'}</div>
-        <div class="bar"><div class="bar-fill ${color}" style="width:${Math.min(100, pct)}%;"></div></div>
-      </div>
-    `;
-  });
-  cooldownsGrid.innerHTML = html || '<div class="empty-state"><i class="fas fa-database"></i> No cooldown data</div>';
-}
-
-  function renderCooldowns(bars) {
-    const barNames = ['energy', 'nerve', 'happy', 'life', 'chain'];
-    const icons = {
-      energy: 'bolt',
-      nerve: 'brain',
-      happy: 'smile',
-      life: 'heart',
-      chain: 'link'
-    };
-    const colors = {
-      energy: 'gold',
-      nerve: 'blue',
-      happy: 'green',
-      life: 'red',
-      chain: 'purple'
-    };
-    let html = '';
-    barNames.forEach(name => {
-      const bar = bars[name];
-      if (!bar) return;
-      const current = bar.current || 0;
-      // Support both 'maximum' and 'max' (chain uses 'max')
-      const max = bar.maximum || bar.max || 100;
-      const pct = max > 0 ? (current / max) * 100 : 0;
-      const tick = bar.tick_time || bar.cooldown || 0; // chain uses cooldown
-      const full = bar.full_time || bar.end || 0;
-      const icon = icons[name] || 'circle';
-      const color = colors[name] || 'gray';
-      html += `
-        <div class="cooldown-item">
-          <div class="label"><i class="fas fa-${icon}"></i> ${name.toUpperCase()}</div>
-          <div class="value">${current} / ${max}</div>
-          <div class="sub">Next tick: ${tick}s · Full: ${full > 0 ? full + 's' : '—'}</div>
-          <div class="bar"><div class="bar-fill ${color}" style="width:${Math.min(100, pct)}%;"></div></div>
-        </div>
-      `;
-    });
-    cooldownsGrid.innerHTML = html || '<div class="empty-state"><i class="fas fa-database"></i> No cooldown data</div>';
+  function updateDebugJson() {
+    debugJson.textContent = JSON.stringify(state.requests, null, 2);
   }
 
-  // ─── ACTIONS ──────────────────────────────────────────────────────
-  async function acceptRequest(id) {
-    const res = await apiFetch(`/requests/${id}/accept`, { method: 'PUT' });
-    if (res.ok) {
-      hitFeedback.textContent = '✅ Accepted';
-      await loadRequests();
-    } else {
-      const err = await res.json();
-      hitFeedback.textContent = '❌ ' + err.error;
-    }
+  function renderHitLog() {
+    const log = state.hitLog.slice(-10).reverse();
+    if (!log.length) { hitLogDiv.innerHTML = `<div class="empty-state"><i class="fas fa-scroll"></i> No hits recorded yet.</div>`; return; }
+    let html = `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Buyer</th><th>Loser</th><th>Price</th><th>Energy</th></tr></thead><tbody>`;
+    log.forEach(h => html += `<tr><td>${new Date(h.timestamp).toLocaleTimeString()}</td><td>${h.buyer}</td><td>${h.loser || '—'}</td><td>$${h.price}</td><td>-${HIT_COST}</td></tr>`);
+    html += `</tbody></table></div>`;
+    hitLogDiv.innerHTML = html;
+  }
+
+  function renderAll() {
+    renderCooldowns();
+    renderStats();
+    renderHitterTable();
+    renderHitLog();
+  }
+
+  // ─── ACTIONS ────────────────────────────────────────────────────
+  function acceptRequest(id) {
+    const req = state.requests.find(r => r.id === id);
+    if (!req || req.status !== 'open') return;
+    if (!state.currentHitterId) { alert('Refresh API data first to get your ID.'); return; }
+    req.status = 'active';
+    req.hitter = state.currentHitterId;
+    hitFeedback.textContent = `✅ Accepted ${req.buyer}`;
+    saveState();
+    renderAll();
   }
 
   async function verifyHit(id) {
-    hitFeedback.textContent = '⏳ verifying...';
-    const res = await apiFetch(`/requests/${id}/verify`, { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json();
-      hitFeedback.textContent = `✅ Verified! Remaining: ${data.remaining}`;
-      await loadRequests();
-      if (data.receipts) showReceipts(id);
-    } else {
-      const err = await res.json();
-      hitFeedback.textContent = '❌ ' + err.error;
-    }
+    const req = state.requests.find(r => r.id === id);
+    if (!req || req.status !== 'active') { alert('Request not active.'); return; }
+    if (req.hitter !== state.currentHitterId) { alert('Only the assigned hitter can verify.'); return; }
+    if (req.remaining <= 0) { alert('No remaining hits to verify.'); return; }
+    const key = apiKeyInput.value.trim();
+    if (!key) { alert('Enter API key.'); return; }
+    try {
+      const r = await fetch(`https://api.torn.com/v2/user/log?limit=20&key=${key}`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      const logs = data.log || [];
+      const loserId = req.loser;
+      let found = null;
+      for (const log of logs) {
+        if (log.details?.category !== 'Attacking') continue;
+        const str = JSON.stringify(log.data || {});
+        if (str.includes(loserId)) { found = log; break; }
+      }
+      if (!found) { alert('❌ No recent attack found against this loser.'); return; }
+      req.remaining = Math.max(0, req.remaining - 1);
+      if (!req.receipts) req.receipts = [];
+      req.receipts.push({
+        timestamp: new Date().toISOString(),
+        logId: found.id,
+        message: `Hit verified against ${req.loser} at ${new Date(found.timestamp * 1000).toLocaleString()}. Log ID: ${found.id}`
+      });
+      if (req.remaining === 0) { req.status = 'done'; hitFeedback.textContent = `✅ All hits verified! Order done.`; }
+      else { hitFeedback.textContent = `✅ Verified! ${req.remaining} left.`; }
+      saveState();
+      renderAll();
+      showReceipts(id);
+    } catch(e) { alert('❌ ' + e.message); }
   }
 
-  async function completeRequest(id) {
-    const res = await apiFetch(`/requests/${id}/complete`, { method: 'PUT' });
-    if (res.ok) {
-      hitFeedback.textContent = '✅ Completed';
-      await loadRequests();
-    } else {
-      const err = await res.json();
-      hitFeedback.textContent = '❌ ' + err.error;
-    }
+  function completeRequest(id) {
+    const req = state.requests.find(r => r.id === id);
+    if (!req || req.status !== 'active') { alert('Not active.'); return; }
+    if (req.hitter !== state.currentHitterId) { alert('Only the hitter can complete.'); return; }
+    if (req.remaining > 0) { alert('Verify all hits first.'); return; }
+    req.status = 'done';
+    hitFeedback.textContent = `✅ Completed ${req.buyer}`;
+    saveState();
+    renderAll();
   }
 
-  async function markPaid(id) {
-    const res = await apiFetch(`/requests/${id}/paid`, { method: 'PUT' });
-    if (res.ok) {
-      hitFeedback.textContent = '💰 Marked paid';
-      await loadRequests();
-    } else {
-      const err = await res.json();
-      hitFeedback.textContent = '❌ ' + err.error;
-    }
+  function markPaid(id) {
+    const req = state.requests.find(r => r.id === id);
+    if (!req) return;
+    if (req.hitter !== state.currentHitterId) { alert('Only the assigned hitter can mark paid.'); return; }
+    if (req.remaining > 0) { alert('Complete all hits first.'); return; }
+    req.status = 'paid';
+    req.paid = true;
+    hitFeedback.textContent = `💰 ${req.buyer} marked as paid.`;
+    saveState();
+    renderAll();
   }
 
   // ─── SELL LOSS ──────────────────────────────────────────────────
-  async function sellLoss() {
-    const active = requests.filter(r => r.status === 'active' && r.hitter_id === currentUser?.id);
-    if (active.length) {
-      await verifyHit(active[0].id);
-    } else {
-      const open = requests.filter(r => r.status === 'open');
+  function sellLoss() {
+    if (state.energy < HIT_COST) { hitFeedback.textContent = '❌ Not enough energy!'; return; }
+    const active = state.requests.filter(r => r.status === 'active' && r.hitter === state.currentHitterId);
+    if (!active.length) {
+      const open = state.requests.filter(r => r.status === 'open');
       if (open.length && confirm(`Accept ${open[0].buyer} ($${open[0].price}/hit)?`)) {
-        await acceptRequest(open[0].id);
-        setTimeout(sellLoss, 300);
-      } else {
-        hitFeedback.textContent = '❌ No active contract. Accept one first.';
+        acceptRequest(open[0].id);
+        setTimeout(() => {
+          const newActive = state.requests.filter(r => r.status === 'active' && r.hitter === state.currentHitterId);
+          if (newActive.length) doSell(newActive[0]);
+          else hitFeedback.textContent = '❌ No active contract.';
+        }, 100);
+        return;
       }
+      hitFeedback.textContent = '❌ No active contract. Accept one first.';
+      return;
     }
+    doSell(active[0]);
+  }
+  function doSell(req) {
+    state.energy -= HIT_COST;
+    state.profit += req.price;
+    state.hitLog.push({ buyer: req.buyer, loser: req.loser, price: req.price, timestamp: Date.now() });
+    req.remaining = Math.max(0, req.remaining - 1);
+    if (req.remaining === 0) { req.status = 'done'; hitFeedback.textContent = `✅ Order from ${req.buyer} completed!`; }
+    else { hitFeedback.textContent = `✅ Hit sold to ${req.buyer} (${req.remaining} left)`; }
+    if (state.energy < state.maxEnergy && state.tickTime === 0) state.tickTime = state.interval || 600;
+    saveState();
+    renderAll();
   }
 
-  // ─── RECEIPTS ──────────────────────────────────────────────────
-  async function showReceipts(id) {
-    const res = await apiFetch(`/requests/${id}/receipts`);
-    if (res.ok) {
-      const receipts = await res.json();
-      if (!receipts.length) { alert('No receipts.'); return; }
-      let html = '';
-      receipts.forEach((r, i) => {
-        html += `<div class="receipt-item"><strong>#${i+1}</strong> ${r.message}<br><span class="time">${new Date(r.timestamp).toLocaleString()}</span></div>`;
-      });
-      receiptsList.innerHTML = html;
-      receiptsModal.style.display = 'flex';
-      receiptsModal.dataset.requestId = id;
-    }
+  // ─── RECEIPTS ───────────────────────────────────────────────────
+  function showReceipts(id) {
+    const req = state.requests.find(r => r.id === id);
+    if (!req || !req.receipts || !req.receipts.length) { alert('No receipts.'); return; }
+    let html = '';
+    req.receipts.forEach((r, i) => {
+      html += `<div class="receipt-item"><strong>#${i+1}</strong> ${r.message}<br><span class="time">${new Date(r.timestamp).toLocaleString()}</span></div>`;
+    });
+    receiptsList.innerHTML = html;
+    receiptsModal.style.display = 'flex';
+    receiptsModal.dataset.requestId = id;
   }
 
   copyAllReceiptsBtn.addEventListener('click', function() {
     const id = parseInt(receiptsModal.dataset.requestId);
-    if (!id) return;
-    apiFetch(`/requests/${id}/receipts`).then(res => res.json()).then(receipts => {
-      const text = receipts.map((r, i) => `Receipt #${i+1}: ${r.message}`).join('\n');
+    const req = state.requests.find(r => r.id === id);
+    if (!req || !req.receipts) return;
+    const text = req.receipts.map((r, i) => `Receipt #${i+1}: ${r.message}`).join('\n');
+    if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => hitFeedback.textContent = '✅ Copied!');
-    });
-  });
-
-  receiptsModal.addEventListener('click', e => {
-    if (e.target === receiptsModal) receiptsModal.style.display = 'none';
-  });
-
-  // ─── HIT LOGS ──────────────────────────────────────────────────
-  async function loadHitLogs() {
-    const res = await apiFetch('/hit-logs');
-    if (res.ok) {
-      const logs = await res.json();
-      if (!logs.length) {
-        hitLogDiv.innerHTML = `<div class="empty-state"><i class="fas fa-scroll"></i> No hits recorded yet.</div>`;
-        return;
-      }
-      let html = `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Buyer</th><th>Loser</th><th>Price</th><th>Energy</th></tr></thead><tbody>`;
-      logs.slice(0, 10).forEach(h => {
-        html += `<tr><td>${new Date(h.timestamp).toLocaleTimeString()}</td><td>${h.buyer}</td><td>${h.loser || '—'}</td><td>$${h.price}</td><td>-${h.energy_used || 25}</td></tr>`;
-      });
-      html += `</tbody></table></div>`;
-      hitLogDiv.innerHTML = html;
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      hitFeedback.textContent = '✅ Copied!';
     }
-  }
+  });
+  receiptsModal.addEventListener('click', e => { if (e.target === receiptsModal) receiptsModal.style.display = 'none'; });
 
   // ─── URL GENERATORS ────────────────────────────────────────────
-  function getTornId() {
-    return currentUser?.torn_id;
+  async function genLoserLink() {
+    const key = apiKeyInput.value.trim();
+    if (!key) { dashboardFeedback.textContent = '❌ Enter API key.'; return; }
+    try {
+      const r = await fetch(`https://api.torn.com/v2/user/basic?key=${key}`);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      const url = window.location.origin + window.location.pathname + '?loser=' + d.profile.id;
+      dashboardUrl.value = url;
+      dashboardCopyBtn.style.display = 'inline-flex';
+      dashboardFeedback.textContent = '✅ Loser link generated.';
+    } catch(e) { dashboardFeedback.textContent = '❌ ' + e.message; }
   }
-
-  document.getElementById('dashboardLoserBtn').addEventListener('click', function() {
-    const tornId = getTornId();
-    if (!tornId) { dashboardFeedback.textContent = '❌ No Torn ID found.'; return; }
-    const url = window.location.origin + window.location.pathname + '?loser=' + tornId;
-    dashboardUrl.value = url;
-    dashboardCopyBtn.style.display = 'inline-flex';
-    dashboardFeedback.textContent = '✅ Loser link generated.';
-  });
-
-  document.getElementById('dashboardFullBtn').addEventListener('click', function() {
+  async function genFullLink() {
+    const key = apiKeyInput.value.trim();
     const buyer = dashboardBuyer.value.trim();
-    if (!buyer) { dashboardFeedback.textContent = '❌ Enter a buyer name.'; return; }
-    const tornId = getTornId();
-    if (!tornId) { dashboardFeedback.textContent = '❌ No Torn ID found.'; return; }
-    const url = window.location.origin + window.location.pathname + '?target=' + encodeURIComponent(buyer) + '&loser=' + tornId;
-    dashboardUrl.value = url;
-    dashboardCopyBtn.style.display = 'inline-flex';
-    dashboardFeedback.textContent = '✅ Full link generated.';
-  });
-
-  dashboardCopyBtn.addEventListener('click', function() {
+    if (!key) { dashboardFeedback.textContent = '❌ Enter API key.'; return; }
+    if (!buyer) { dashboardFeedback.textContent = '❌ Enter buyer.'; return; }
+    try {
+      const r = await fetch(`https://api.torn.com/v2/user/basic?key=${key}`);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      const url = window.location.origin + window.location.pathname + '?target=' + encodeURIComponent(buyer) + '&loser=' + d.profile.id;
+      dashboardUrl.value = url;
+      dashboardCopyBtn.style.display = 'inline-flex';
+      dashboardFeedback.textContent = '✅ Full link generated.';
+    } catch(e) { dashboardFeedback.textContent = '❌ ' + e.message; }
+  }
+  function copyUrl() {
     const url = dashboardUrl.value;
     if (!url) { dashboardFeedback.textContent = '❌ Generate a URL first.'; return; }
-    navigator.clipboard.writeText(url).then(() => dashboardFeedback.textContent = '✅ Copied!');
-  });
-
-  // ─── EXPORT / IMPORT ──────────────────────────────────────────
-  exportJsonBtn.addEventListener('click', async () => {
-    const res = await apiFetch('/admin/export');
-    if (res.ok) {
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `torn_backup_${new Date().toISOString().slice(0,10)}.json`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-      hitFeedback.textContent = '📦 Exported';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => dashboardFeedback.textContent = '✅ Copied!');
     } else {
-      hitFeedback.textContent = '❌ Export failed';
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      dashboardFeedback.textContent = '✅ Copied!';
     }
-  });
+  }
 
-  importJsonBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', async function(e) {
-    if (!this.files.length) return;
-    const file = this.files[0];
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (!data.requests) throw new Error('Invalid format');
-        if (confirm(`Import ${data.requests.length} requests?`)) {
-          const res = await apiFetch('/admin/import', { method: 'POST', body: JSON.stringify(data) });
-          if (res.ok) {
-            hitFeedback.textContent = '✅ Import successful';
-            await loadRequests();
-          } else {
-            const err = await res.json();
-            hitFeedback.textContent = '❌ ' + err.error;
-          }
-        }
-      } catch (e) {
-        hitFeedback.textContent = '❌ ' + e.message;
+  // ─── API FETCH ──────────────────────────────────────────────────
+  async function fetchTornData() {
+    const key = apiKeyInput.value.trim();
+    if (!key) { apiStatus.textContent = '⚠️ Enter API key'; return; }
+    state.apiKey = key;
+    saveState();
+    apiStatus.textContent = '⏳ fetching...';
+    try {
+      const myId = await fetchMyId(key);
+      if (myId) state.currentHitterId = myId;
+
+      const barsRes = await fetch(`https://api.torn.com/v2/user/bars?key=${key}`);
+      const bars = await barsRes.json();
+      if (bars.error) { apiStatus.textContent = '❌ ' + bars.error; return; }
+      const b = bars.bars || {};
+      const e = b.energy || {};
+      state.energy = e.current || 0;
+      state.maxEnergy = e.maximum || 150;
+      state.interval = e.interval || 600;
+      state.tickTime = e.tick_time || 0;
+      state.fullTime = e.full_time || 0;
+      if (state.energy >= state.maxEnergy) { state.tickTime = 0; state.fullTime = 0; }
+      state.nerve = b.nerve || {};
+      state.happy = b.happy || {};
+      state.life = b.life || {};
+      state.chain = b.chain || {};
+
+      const logsRes = await fetch(`https://api.torn.com/v2/user/log?limit=100&key=${key}`);
+      const logs = await logsRes.json();
+      if (!logs.error) {
+        const attacks = (logs.log || []).filter(entry => {
+          const cat = entry.details?.category || '';
+          return cat === 'Attacking' || (entry.details?.title || '').toLowerCase().includes('attack');
+        });
+        state.apiAttacks = attacks.slice(0, 50);
+        state.totalHits = attacks.length;
       }
-    };
-    reader.readAsText(file);
-    this.value = '';
-  });
 
-  // ─── EVENTS ────────────────────────────────────────────────────
-  connectBtn.addEventListener('click', () => connect(apiKeyInput.value.trim()));
-  apiKeyInput.addEventListener('keypress', e => { if (e.key === 'Enter') connect(apiKeyInput.value.trim()); });
-  logoutBtn.addEventListener('click', logout);
-  sellLossBtn.addEventListener('click', sellLoss);
-  showOnlyActive.addEventListener('change', () => loadRequests());
+      apiStatus.textContent = `✅ Updated (${new Date().toLocaleTimeString()})`;
+      saveState();
+      renderAll();
+    } catch(e) { apiStatus.textContent = '❌ ' + e.message; console.error(e); }
+  }
 
-  // ─── INIT ──────────────────────────────────────────────────────
-  (async function init() {
-    const savedKey = localStorage.getItem('tornApiKey');
-    if (savedKey) {
-      apiKeyInput.value = savedKey;
-      await connect(savedKey);
+  // ─── COOLDOWN TICK ─────────────────────────────────────────────
+  function tickCooldown() {
+    const max = state.maxEnergy || 150;
+    if (state.energy >= max) { state.tickTime = 0; renderCooldowns(); renderStats(); return; }
+    if (state.tickTime > 0) {
+      state.tickTime -= 1;
+      if (state.fullTime > 0) state.fullTime = Math.max(0, state.fullTime - 1);
+      if (state.tickTime === 0) {
+        state.energy = Math.min(max, state.energy + 1);
+        if (state.energy < max) { state.tickTime = state.interval || 600; state.fullTime = 0; }
+        else { state.tickTime = 0; state.fullTime = 0; }
+        hitFeedback.textContent = `⚡ +1 energy (${Math.floor(state.energy)}/${max})`;
+        saveState();
+        renderAll();
+      } else { renderCooldowns(); renderStats(); }
     } else {
-      loading.style.display = 'none';
-      mainApp.style.display = 'block';
-      apiKeySection.style.display = 'flex';
-      content.style.display = 'none';
+      if (state.energy < max) { state.tickTime = state.interval || 600; saveState(); renderCooldowns(); renderStats(); }
     }
-    setTimeout(() => {
-      loading.style.display = 'none';
-      mainApp.style.display = 'block';
-    }, 1500);
-  })();
+  }
 
-  setInterval(() => {
-    if (currentUser) loadBars();
-  }, 60000);
+  // ─── INIT ───────────────────────────────────────────────────────
+  function init() {
+    loadState();
+    apiKeyInput.value = state.apiKey || '';
+    apiKeyInput.addEventListener('input', () => { state.apiKey = apiKeyInput.value.trim(); saveState(); });
+    refreshApiBtn.addEventListener('click', fetchTornData);
+    dashboardLoserBtn.addEventListener('click', genLoserLink);
+    dashboardFullBtn.addEventListener('click', genFullLink);
+    dashboardCopyBtn.addEventListener('click', copyUrl);
+    sellLossBtn.addEventListener('click', sellLoss);
+    showOnlyActive.addEventListener('change', renderHitterTable);
+    exportJsonBtn.addEventListener('click', exportJson);
+    importJsonBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function(e) {
+      if (this.files.length) {
+        importJson(this.files[0]);
+        this.value = '';
+      }
+    });
+    renderAll();
+    if (state.energy < state.maxEnergy && state.tickTime === 0) {
+      state.tickTime = state.interval || 600;
+      saveState();
+      renderAll();
+    }
+    if (state.apiKey) setTimeout(fetchTornData, 500);
+    setInterval(tickCooldown, 1000);
+    setInterval(() => { if (apiKeyInput.value.trim()) fetchTornData(); }, 60000);
+  }
+  document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
