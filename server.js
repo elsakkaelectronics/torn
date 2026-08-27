@@ -292,7 +292,9 @@ app.get('/api/bars', authenticateApiKey, async (req, res) => {
   }
 
   // 2. Get user's API key from DB
+async function user(){
   const user = await get('SELECT api_key FROM users WHERE id = ?', req.user.id);
+}
   if (!user || !user.api_key) {
     return res.status(400).json({ error: 'Torn API key not set in your account' });
   }
