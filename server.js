@@ -279,6 +279,13 @@ app.put('/api/settings', authenticateApiKey, async (req, res) => {
 
 // ─── BARS (energy, nerve, happy, life, chain) ────────────────────
 app.get('/api/bars', authenticateApiKey, async (req, res) => {
+
+  // ✅ FIX: prevent crash if req.user is missing
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+});
   // 1. Check user
   if (!req.user || !req.user.id) {
     return res.status(401).json({ error: 'Authentication required' });
