@@ -61,6 +61,91 @@ function exec(sql) {
     });
   });
 }
+
+// ─── INIT DB ──────────────────────────────────────────────────────
+async function initDb() {
+  try {
+    await run('PRAGMA foreign_keys = ON');
+    const schema = `
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        torn_id INTEGER UNIQUE,
+        api_key TEXT,
+        username TEXT,
+        role TEXT DEFAULT 'user',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS user_settings (
+        user_id INTEGER PRIMARY KEY,
+        energy INTEGER DEFAULT 100,
+        max_energy INTEGER DEFAULT 150,
+        interval INTEGER DEFAULT 600,
+        tick_time INTEGER DEFAULT 0,
+        full_time INTEGER DEFAULT 0,
+        profit INTEGER DEFAULT 0,
+        total_hits INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      CREATE TABLE IF NOT EXISTS requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        buyer TEXT NOT NULL,
+        buyer_id INTEGER,
+        loser TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        total INTEGER NOT NULL,
+        remaining INTEGER NOT NULL,
+        status TEXT DEFAULT 'open',
+        hitter_id INTEGER,
+        paid BOOLEAN DEFAULT 0,
+        reported BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (hitter_id) REFERENCES users(id)
+      );
+      CREATE TABLE IF NOT EXISTS receipts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id INTEGER NOT NULL,
+        log_id TEXT,
+        message TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE
+      );
+      CREATE TABLE IF NOT EXISTS hit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        buyer TEXT,
+        loser TEXT,
+        price INTEGER,
+        energy_used INTEGER DEFAULT 25,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      CREATE TABLE IF NOT EXISTS attack_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        log_data TEXT,
+        timestamp INTEGER,
+        details TEXT,
+        fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      CREATE TABLE IF NOT EXISTS blacklist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        torn_id INTEGER,
+        reason TEXT,
+        created_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, torn_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      );
+    `;
+    await exec(schema);
+    console.log('✅ Tables created');
+
     const existingAdmin = await get('SELECT id FROM users WHERE torn_id = 0');
     if (!existingAdmin) {
       await run('INSERT INTO users (torn_id, username, role) VALUES (?, ?, ?)', 0, 'admin', 'admin');
@@ -73,8 +158,11 @@ function exec(sql) {
     throw e;
   }
 }
+
+// ─── INITIALISE DATABASE ──────────────────────────────────────────
 initDb().catch(console.error);
 
+// ─── CACHE ──────────────────────────────────────────────────────────
 const cache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
 
 // ─── UNIVERSAL AUTHENTICATION ─────────────────────────────────────
@@ -83,18 +171,15 @@ async function authenticate(req, res, next) {
   const apiKey = req.headers['x-api-key'];
   const token = req.headers.authorization?.split(' ')[1];
 
-  // Try API key
   if (apiKey) {
     try { user = await get('SELECT * FROM users WHERE api_key = ?', apiKey); } catch (e) {}
   }
-  // Try JWT token
   if (!user && token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       user = await get('SELECT * FROM users WHERE id = ?', decoded.id);
     } catch (e) {}
   }
-  // Try query param (debug)
   if (!user) {
     const queryKey = req.query['apiKey'] || req.query['X-API-Key'];
     if (queryKey) user = await get('SELECT * FROM users WHERE api_key = ?', queryKey);
@@ -115,109 +200,19 @@ async function authenticate(req, res, next) {
   next();
 }
 
+// ─── ADMIN AUTHORISATION ───────────────────────────────────────────
+async function requireAdmin(req, res, next) {
+  await authenticate(req, res, () => {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin required' });
+    }
+    next();
+  });
+}
+
 // ─── ROUTES ─────────────────────────────────────────────────────────
 
 // Admin login
-// ─── Add this table to initDb() ──────────────────────────────────
-// In initDb(), inside the schema string:
-CREATE TABLE IF NOT EXISTS blacklist (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  torn_id INTEGER,
-  reason TEXT,
-  created_by INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(user_id, torn_id),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (created_by) REFERENCES users(id)
-);
-
-// ─── New Admin Routes ─────────────────────────────────────────────
-
-// ─── ADMIN VERIFY (manual receipt) ──────────────────────────────
-app.post('/api/admin/requests/:id/verify', requireAdmin, async (req, res) => {
-  const { log_id, message } = req.body;
-  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
-  if (!reqData) return res.status(404).json({ error: 'Request not found' });
-
-  const receiptMsg = message || `Admin verified hit against ${reqData.loser}. Log ID: ${log_id || 'manual'}`;
-  const result = await run(
-    'INSERT INTO receipts (request_id, log_id, message) VALUES (?, ?, ?)',
-    req.params.id, log_id || null, receiptMsg
-  );
-  // Decrement remaining if not already zero
-  if (reqData.remaining > 0) {
-    await run('UPDATE requests SET remaining = remaining - 1 WHERE id = ?', req.params.id);
-  }
-  // If remaining becomes 0, mark as done
-  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
-  if (updated.remaining === 0 && updated.status === 'active') {
-    await run('UPDATE requests SET status = "done" WHERE id = ?', req.params.id);
-  }
-  const receipt = await get('SELECT * FROM receipts WHERE id = ?', result.lastID);
-  res.json(receipt);
-});
-
-// ─── BLACKLIST ──────────────────────────────────────────────────────
-app.get('/api/admin/blacklist', requireAdmin, async (req, res) => {
-  const rows = await all(`
-    SELECT b.*, u.username as created_by_name FROM blacklist b
-    LEFT JOIN users u ON b.created_by = u.id
-    ORDER BY b.created_at DESC
-  `);
-  res.json(rows);
-});
-
-app.post('/api/admin/blacklist', requireAdmin, async (req, res) => {
-  const { user_id, torn_id, reason } = req.body;
-  if (!user_id && !torn_id) {
-    return res.status(400).json({ error: 'Either user_id or torn_id required' });
-  }
-  // Check if already blacklisted
-  const existing = await get(
-    'SELECT * FROM blacklist WHERE (user_id = ? OR torn_id = ?)',
-    user_id || null, torn_id || null
-  );
-  if (existing) return res.status(400).json({ error: 'User already blacklisted' });
-
-  await run(
-    'INSERT INTO blacklist (user_id, torn_id, reason, created_by) VALUES (?, ?, ?, ?)',
-    user_id || null, torn_id || null, reason || '', req.user.id
-  );
-  res.json({ success: true });
-});
-
-app.delete('/api/admin/blacklist/:id', requireAdmin, async (req, res) => {
-  const result = await run('DELETE FROM blacklist WHERE id = ?', req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
-  res.json({ success: true });
-});
-
-// ─── DISPUTE RESOLVE ──────────────────────────────────────────────
-app.put('/api/admin/requests/:id/resolve', requireAdmin, async (req, res) => {
-  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
-  if (!reqData) return res.status(404).json({ error: 'Request not found' });
-  // If disputed, revert to previous status (active if remaining > 0 else done)
-  const newStatus = reqData.remaining > 0 ? 'active' : 'done';
-  await run('UPDATE requests SET status = ?, reported = 0 WHERE id = ?', newStatus, req.params.id);
-  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
-  res.json(updated);
-});
-
-// ─── Blacklist enforcement ──────────────────────────────────────────
-// Inside POST /api/requests (after user auth)
-if (buyer_id) {
-  const blacklisted = await get('SELECT * FROM blacklist WHERE torn_id = ?', buyer_id);
-  if (blacklisted) {
-    return res.status(403).json({ error: 'Buyer is blacklisted' });
-  }
-}
-
-// Inside PUT /api/requests/:id/accept (after request validation)
-const blacklisted = await get('SELECT * FROM blacklist WHERE user_id = ?', req.user.id);
-if (blacklisted) {
-  return res.status(403).json({ error: 'You are blacklisted and cannot accept requests' });
-}
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (username === 'nightmare' && password === 'qwerty') {
@@ -318,6 +313,13 @@ app.post('/api/requests', authenticate, async (req, res) => {
   if (!buyer || !price || !total) {
     return res.status(400).json({ error: 'Buyer, price, and total required' });
   }
+  // Blacklist check for buyer
+  if (buyer_id) {
+    const blacklisted = await get('SELECT * FROM blacklist WHERE torn_id = ?', buyer_id);
+    if (blacklisted) {
+      return res.status(403).json({ error: 'Buyer is blacklisted' });
+    }
+  }
   const result = await run(`
     INSERT INTO requests (user_id, buyer, buyer_id, loser, price, total, remaining)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -332,6 +334,11 @@ app.put('/api/requests/:id/accept', authenticate, async (req, res) => {
   if (reqData.status !== 'open') return res.status(400).json({ error: 'Request is not open' });
   if (reqData.user_id !== req.user.id && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'You can only accept requests from your own account' });
+  }
+  // Check if hitter is blacklisted
+  const blacklisted = await get('SELECT * FROM blacklist WHERE user_id = ?', req.user.id);
+  if (blacklisted) {
+    return res.status(403).json({ error: 'You are blacklisted and cannot accept requests' });
   }
   await run('UPDATE requests SET status = "active", hitter_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', req.user.id, req.params.id);
   const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
@@ -503,21 +510,75 @@ app.get('/api/attack-logs', authenticate, async (req, res) => {
   res.json(parsed);
 });
 
-// ─── ADMIN ROUTES ────────────────────────────────────────────────
-async function requireAdmin(req, res, next) {
-  await authenticate(req, res, () => {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin required' });
-    }
-    next();
-  });
-}
+// ─── ADMIN ROUTES ──────────────────────────────────────────────────
 
-app.get('/api/users', requireAdmin, async (req, res) => {
-  const rows = await all('SELECT id, username, role, torn_id, created_at FROM users');
+// Admin Verify (manual receipt)
+app.post('/api/admin/requests/:id/verify', requireAdmin, async (req, res) => {
+  const { log_id, message } = req.body;
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+
+  const receiptMsg = message || `Admin verified hit against ${reqData.loser}. Log ID: ${log_id || 'manual'}`;
+  const result = await run(
+    'INSERT INTO receipts (request_id, log_id, message) VALUES (?, ?, ?)',
+    req.params.id, log_id || null, receiptMsg
+  );
+  if (reqData.remaining > 0) {
+    await run('UPDATE requests SET remaining = remaining - 1 WHERE id = ?', req.params.id);
+  }
+  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (updated.remaining === 0 && updated.status === 'active') {
+    await run('UPDATE requests SET status = "done" WHERE id = ?', req.params.id);
+  }
+  const receipt = await get('SELECT * FROM receipts WHERE id = ?', result.lastID);
+  res.json(receipt);
+});
+
+// Blacklist
+app.get('/api/admin/blacklist', requireAdmin, async (req, res) => {
+  const rows = await all(`
+    SELECT b.*, u.username as created_by_name FROM blacklist b
+    LEFT JOIN users u ON b.created_by = u.id
+    ORDER BY b.created_at DESC
+  `);
   res.json(rows);
 });
 
+app.post('/api/admin/blacklist', requireAdmin, async (req, res) => {
+  const { user_id, torn_id, reason } = req.body;
+  if (!user_id && !torn_id) {
+    return res.status(400).json({ error: 'Either user_id or torn_id required' });
+  }
+  const existing = await get(
+    'SELECT * FROM blacklist WHERE (user_id = ? OR torn_id = ?)',
+    user_id || null, torn_id || null
+  );
+  if (existing) return res.status(400).json({ error: 'User already blacklisted' });
+
+  await run(
+    'INSERT INTO blacklist (user_id, torn_id, reason, created_by) VALUES (?, ?, ?, ?)',
+    user_id || null, torn_id || null, reason || '', req.user.id
+  );
+  res.json({ success: true });
+});
+
+app.delete('/api/admin/blacklist/:id', requireAdmin, async (req, res) => {
+  const result = await run('DELETE FROM blacklist WHERE id = ?', req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
+});
+
+// Dispute resolve
+app.put('/api/admin/requests/:id/resolve', requireAdmin, async (req, res) => {
+  const reqData = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  if (!reqData) return res.status(404).json({ error: 'Request not found' });
+  const newStatus = reqData.remaining > 0 ? 'active' : 'done';
+  await run('UPDATE requests SET status = ?, reported = 0 WHERE id = ?', newStatus, req.params.id);
+  const updated = await get('SELECT * FROM requests WHERE id = ?', req.params.id);
+  res.json(updated);
+});
+
+// ─── ADMIN EXPORT/IMPORT ───────────────────────────────────────────
 app.get('/api/admin/export', requireAdmin, async (req, res) => {
   const users = await all('SELECT id, username, role, torn_id FROM users');
   const requests = await all('SELECT * FROM requests');
@@ -566,6 +627,11 @@ app.post('/api/admin/import', requireAdmin, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.get('/api/users', requireAdmin, async (req, res) => {
+  const rows = await all('SELECT id, username, role, torn_id, created_at FROM users');
+  res.json(rows);
 });
 
 // ─── ERROR HANDLER ────────────────────────────────────────────────
