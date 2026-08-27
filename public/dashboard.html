@@ -32,7 +32,6 @@
     .stat-card .value.gold { color: #f5c400; }
 
     .api-section { background: #141a24; border-radius: 16px; padding: 16px 22px; border: 1px solid #1f2836; margin-bottom: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
-    .api-section label { font-size: 12px; font-weight: 600; color: #7e8ca3; text-transform: uppercase; }
     .api-section input { background: #0f141e; border: 1px solid #1f2836; border-radius: 10px; padding: 8px 14px; color: #e2e8f0; font-size: 14px; flex: 2; min-width: 200px; outline: none; }
     .api-section input:focus { border-color: #d91e36; }
     .api-section .status-msg { font-size: 13px; color: #94a3b8; margin-left: auto; }
@@ -60,10 +59,8 @@
 
     .form-inline { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
     .form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 100px; }
-    .form-group label { font-size: 11px; font-weight: 600; color: #7e8ca3; text-transform: uppercase; }
     .form-group input { background: #0f141e; border: 1px solid #1f2836; border-radius: 10px; padding: 8px 12px; color: #e2e8f0; font-size: 14px; outline: none; width: 100%; }
     .form-group input:focus { border-color: #d91e36; }
-    .form-group input[readonly] { opacity: 0.7; }
 
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -94,7 +91,6 @@
     .cooldown-item .bar-fill.green { background: linear-gradient(90deg, #10b981, #34d399); }
     .cooldown-item .bar-fill.red { background: linear-gradient(90deg, #ef4444, #f87171); }
     .cooldown-item .bar-fill.purple { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
-    .cooldown-item .bar-fill.gray { background: linear-gradient(90deg, #6b7280, #9ca3af); }
 
     .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; border-top: 1px solid #1f2836; padding-top: 12px; }
     .filter-row label { font-size: 12px; color: #7e8ca3; display: flex; align-items: center; gap: 6px; }
@@ -108,12 +104,24 @@
     .receipt-item { background: #1a1f2c; padding: 10px; border-radius: 8px; margin-bottom: 8px; border-left: 3px solid #f5c400; }
     .receipt-item .time { color: #7e8ca3; font-size: 12px; }
 
+    /* Payments Modal */
+    .payments-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .payments-content { background: #141a24; border: 1px solid #1f2836; border-radius: 16px; max-width: 700px; width: 90%; padding: 24px; max-height: 80vh; overflow-y: auto; }
+    .payments-content .close { float: right; cursor: pointer; color: #d91e36; font-size: 24px; }
+    .payments-content h3 { margin-bottom: 16px; color: #f5c400; }
+
     .file-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
     .file-actions .btn { font-size: 12px; padding: 6px 14px; }
 
     #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0d12; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #f5c400; z-index: 9999; flex-direction: column; gap: 20px; }
     #loading .spinner { width: 50px; height: 50px; border: 4px solid #1f2836; border-top-color: #d91e36; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    .payments-modal .submission-item { background: #1a1f2c; padding: 14px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid #f5c400; }
+    .payments-modal .submission-item .status-pending { color: #f5c400; }
+    .payments-modal .submission-item .status-verified { color: #22c55e; }
+    .payments-modal .submission-item .status-rejected { color: #ef4444; }
+    .payments-modal .submission-item .actions { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -207,6 +215,7 @@
     </div>
   </div>
 
+  <!-- Receipts Modal -->
   <div id="receiptsModal" class="receipts-modal">
     <div class="receipts-content">
       <span class="close" onclick="document.getElementById('receiptsModal').style.display='none'">&times;</span>
@@ -215,15 +224,17 @@
       <button class="btn btn-success" id="copyAllReceiptsBtn" style="margin-top:12px;"><i class="fas fa-copy"></i> Copy All Receipts</button>
     </div>
   </div>
-</div>
-<!-- Payments Modal -->
-<div id="paymentsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:1000;">
-  <div style="background:#141a24; padding:30px; border-radius:16px; max-width:600px; width:90%; max-height:90vh; overflow-y:auto;">
-    <span onclick="document.getElementById('paymentsModal').style.display='none'" style="float:right; cursor:pointer; font-size:24px; color:#d91e36;">&times;</span>
-    <h3 style="color:#f5c400; margin-bottom:16px;"><i class="fas fa-receipt"></i> Payment Submissions</h3>
-    <div id="paymentsList"></div>
+
+  <!-- Payments Modal -->
+  <div id="paymentsModal" class="payments-modal">
+    <div class="payments-content">
+      <span class="close" onclick="document.getElementById('paymentsModal').style.display='none'">&times;</span>
+      <h3><i class="fas fa-receipt"></i> Payment Submissions</h3>
+      <div id="paymentsList"><div class="empty-state">Loading...</div></div>
+    </div>
   </div>
 </div>
+
 <script>
   // ─── API BASE ──────────────────────────────────────────────────────
   const API = '/api';
@@ -267,6 +278,8 @@
   const importJsonBtn = $('importJsonBtn');
   const fileInput = $('fileInput');
   const refreshIndicator = $('refreshIndicator');
+  const paymentsModal = $('paymentsModal');
+  const paymentsList = $('paymentsList');
 
   // ─── HELPERS ──────────────────────────────────────────────────────
   function getHeaders(apiKey) {
@@ -326,7 +339,7 @@
       if (currentUser) {
         loadRequests().catch(() => {});
       }
-    }, 10000); // 10 seconds
+    }, 10000);
     refreshIndicator.style.display = 'inline';
   }
 
@@ -388,7 +401,7 @@
       rows = requests.filter(r => r.status === 'open' || r.hitter_id === currentUser?.id);
     }
     if (!rows.length) {
-      hitterTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#4a5568;">No requests to show.</td></tr>`;
+      hitterTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:#4a5568;">No requests to show.</td></tr>`;
       return;
     }
     let html = '';
@@ -408,97 +421,16 @@
           <button class="btn btn-success btn-sm paid-btn" data-id="${r.id}"><i class="fas fa-dollar-sign"></i> Paid</button>
         `;
       } else if (isMyHit && r.status === 'done') {
-        actions = `<button class="btn btn-success btn-sm paid-btn" data-id="${r.id}"><i class="fas fa-dollar-sign"></i> Mark Paid</button>`;
+        actions = `
+          <button class="btn btn-success btn-sm paid-btn" data-id="${r.id}"><i class="fas fa-dollar-sign"></i> Mark Paid</button>
+          <button class="btn btn-primary btn-sm view-payments-btn" data-id="${r.id}"><i class="fas fa-receipt"></i> Payments</button>
+        `;
       } else if (['active','done','paid'].includes(r.status) && r.hitter_id) {
         actions = `<span style="color:#7e8ca3; font-size:12px;">assigned to ${r.hitter_id}</span>`;
       } else {
         actions = `<span style="color:#4a5568;">—</span>`;
       }
-// Event delegation for view-payments-btn
-document.addEventListener('click', function(e) {
-  if (e.target.closest('.view-payments-btn')) {
-    const btn = e.target.closest('.view-payments-btn');
-    const id = btn.dataset.id;
-    viewPayments(id);
-  }
-});
 
-async function viewPayments(requestId) {
-  const res = await apiFetch(`/requests/${requestId}/payment-submissions`);
-  if (res.ok) {
-    const submissions = await res.json();
-    const container = document.getElementById('paymentsList');
-    if (!submissions.length) {
-      container.innerHTML = '<div class="empty-state">No payment submissions yet.</div>';
-    } else {
-      let html = '';
-      submissions.forEach(s => {
-        const statusColor = s.status === 'pending' ? '#f5c400' : s.status === 'verified' ? '#22c55e' : '#ef4444';
-        const statusLabel = s.status.toUpperCase();
-        html += `
-          <div style="background:#1a1f2c; padding:14px; border-radius:10px; margin-bottom:10px; border-left:4px solid ${statusColor};">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-              <strong style="color:${statusColor};">${statusLabel}</strong>
-              <span style="color:#7e8ca3; font-size:12px;">${new Date(s.submitted_at).toLocaleString()}</span>
-            </div>
-            <div style="margin-top:6px; color:#94a3b8;">
-              ${s.transaction_id ? `<div>Transaction: <strong>${s.transaction_id}</strong></div>` : ''}
-              ${s.amount ? `<div>Amount: <strong>$${s.amount}</strong></div>` : ''}
-              ${s.proof_url ? `<div>Proof: <a href="${s.proof_url}" target="_blank" style="color:#f5c400;">View Screenshot</a></div>` : ''}
-              ${s.message ? `<div>Message: ${s.message}</div>` : ''}
-              ${s.verified_by_name ? `<div style="color:#7e8ca3; font-size:12px;">Verified by: ${s.verified_by_name}</div>` : ''}
-            </div>
-            ${s.status === 'pending' ? `
-              <div style="margin-top:10px; display:flex; gap:10px;">
-                <button class="btn btn-success btn-sm verify-payment-btn" data-id="${s.id}" data-action="verified"><i class="fas fa-check"></i> Verify</button>
-                <button class="btn btn-danger btn-sm verify-payment-btn" data-id="${s.id}" data-action="rejected"><i class="fas fa-times"></i> Reject</button>
-              </div>
-            ` : ''}
-          </div>
-        `;
-      });
-      container.innerHTML = html;
-    }
-    document.getElementById('paymentsModal').style.display = 'flex';
-  } else {
-    alert('Failed to load payment submissions.');
-  }
-}
-
-// Event delegation for verify-payment-btn
-document.addEventListener('click', async function(e) {
-  if (e.target.closest('.verify-payment-btn')) {
-    const btn = e.target.closest('.verify-payment-btn');
-    const submissionId = btn.dataset.id;
-    const action = btn.dataset.action;
-    if (!confirm(`Are you sure you want to ${action} this payment?`)) return;
-    try {
-      const res = await apiFetch(`/payment-submissions/${submissionId}/verify`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: action })
-      });
-      if (res.ok) {
-        alert(`✅ Payment ${action}!`);
-        // Refresh the payments list
-        const modal = document.getElementById('paymentsModal');
-        const requestId = modal.dataset.requestId;
-        if (requestId) viewPayments(parseInt(requestId));
-        await loadRequests(); // refresh the main table
-      } else {
-        const err = await res.json();
-        alert('❌ ' + err.error);
-      }
-    } catch(e) { alert('❌ ' + e.message); }
-  }
-});
-
-// Store requestId when opening payments modal
-document.addEventListener('click', function(e) {
-  if (e.target.closest('.view-payments-btn')) {
-    const btn = e.target.closest('.view-payments-btn');
-    document.getElementById('paymentsModal').dataset.requestId = btn.dataset.id;
-  }
-});
       const receiptCount = r.receipts ? r.receipts.length : 0;
       const receiptBtn = receiptCount > 0 ? `<button class="btn btn-sm btn-info view-receipts-btn" data-id="${r.id}"><i class="fas fa-receipt"></i> ${receiptCount}</button>` : '—';
 
@@ -520,6 +452,7 @@ document.addEventListener('click', function(e) {
     document.querySelectorAll('.complete-btn').forEach(b => b.addEventListener('click', () => completeRequest(parseInt(b.dataset.id))));
     document.querySelectorAll('.paid-btn').forEach(b => b.addEventListener('click', () => markPaid(parseInt(b.dataset.id))));
     document.querySelectorAll('.view-receipts-btn').forEach(b => b.addEventListener('click', () => showReceipts(parseInt(b.dataset.id))));
+    document.querySelectorAll('.view-payments-btn').forEach(b => b.addEventListener('click', () => viewPayments(parseInt(b.dataset.id))));
   }
 
   // ─── BARS ────────────────────────────────────────────────────────
@@ -617,6 +550,73 @@ document.addEventListener('click', function(e) {
     } else {
       const err = await res.json();
       hitFeedback.textContent = '❌ ' + err.error;
+    }
+  }
+
+  // ─── PAYMENT VERIFICATION ──────────────────────────────────────────
+  async function viewPayments(requestId) {
+    paymentsModal.style.display = 'flex';
+    paymentsList.innerHTML = '<div class="empty-state">Loading...</div>';
+    try {
+      const res = await apiFetch(`/requests/${requestId}/payment-submissions`);
+      if (res.ok) {
+        const submissions = await res.json();
+        if (!submissions.length) {
+          paymentsList.innerHTML = '<div class="empty-state">No payment submissions yet.</div>';
+          return;
+        }
+        let html = '';
+        submissions.forEach(s => {
+          const statusColor = s.status === 'pending' ? '#f5c400' : s.status === 'verified' ? '#22c55e' : '#ef4444';
+          const statusLabel = s.status.toUpperCase();
+          html += `
+            <div class="submission-item" style="border-left-color: ${statusColor};">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                <strong style="color: ${statusColor};">${statusLabel}</strong>
+                <span style="color:#7e8ca3; font-size:12px;">${new Date(s.submitted_at).toLocaleString()}</span>
+              </div>
+              <div style="margin-top:6px; color:#94a3b8;">
+                ${s.transaction_id ? `<div>Transaction: <strong>${s.transaction_id}</strong></div>` : ''}
+                ${s.amount ? `<div>Amount: <strong>$${s.amount}</strong></div>` : ''}
+                ${s.proof_url ? `<div>Proof: <a href="${s.proof_url}" target="_blank" style="color:#f5c400;">View Screenshot</a></div>` : ''}
+                ${s.message ? `<div>Message: ${s.message}</div>` : ''}
+                ${s.verified_by_name ? `<div style="color:#7e8ca3; font-size:12px;">Verified by: ${s.verified_by_name}</div>` : ''}
+              </div>
+              ${s.status === 'pending' ? `
+                <div class="actions">
+                  <button class="btn btn-success btn-sm verify-payment-btn" data-id="${s.id}" data-action="verified"><i class="fas fa-check"></i> Verify</button>
+                  <button class="btn btn-danger btn-sm verify-payment-btn" data-id="${s.id}" data-action="rejected"><i class="fas fa-times"></i> Reject</button>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        });
+        paymentsList.innerHTML = html;
+        // Attach events to the new buttons
+        document.querySelectorAll('.verify-payment-btn').forEach(b => {
+          b.addEventListener('click', async () => {
+            const id = b.dataset.id;
+            const action = b.dataset.action;
+            if (!confirm(`Are you sure you want to ${action} this payment?`)) return;
+            try {
+              const res = await apiFetch(`/payment-submissions/${id}/verify`, {
+                method: 'PUT',
+                body: JSON.stringify({ status: action })
+              });
+              if (res.ok) {
+                alert(`✅ Payment ${action}!`);
+                await viewPayments(requestId);
+                await loadRequests();
+              } else {
+                const err = await res.json();
+                alert('❌ ' + err.error);
+              }
+            } catch(e) { alert('❌ ' + e.message); }
+          });
+        });
+      }
+    } catch (e) {
+      paymentsList.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
     }
   }
 
@@ -764,6 +764,11 @@ document.addEventListener('click', function(e) {
   logoutBtn.addEventListener('click', logout);
   sellLossBtn.addEventListener('click', sellLoss);
   showOnlyActive.addEventListener('change', () => loadRequests());
+
+  // ─── CLOSE PAYMENTS MODAL ──────────────────────────────────────
+  paymentsModal.addEventListener('click', e => {
+    if (e.target === paymentsModal) paymentsModal.style.display = 'none';
+  });
 
   // ─── INIT ──────────────────────────────────────────────────────
   (async function init() {
