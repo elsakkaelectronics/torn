@@ -216,7 +216,14 @@
     </div>
   </div>
 </div>
-
+<!-- Payments Modal -->
+<div id="paymentsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:1000;">
+  <div style="background:#141a24; padding:30px; border-radius:16px; max-width:600px; width:90%; max-height:90vh; overflow-y:auto;">
+    <span onclick="document.getElementById('paymentsModal').style.display='none'" style="float:right; cursor:pointer; font-size:24px; color:#d91e36;">&times;</span>
+    <h3 style="color:#f5c400; margin-bottom:16px;"><i class="fas fa-receipt"></i> Payment Submissions</h3>
+    <div id="paymentsList"></div>
+  </div>
+</div>
 <script>
   // ─── API BASE ──────────────────────────────────────────────────────
   const API = '/api';
@@ -407,7 +414,91 @@
       } else {
         actions = `<span style="color:#4a5568;">—</span>`;
       }
+// Event delegation for view-payments-btn
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.view-payments-btn')) {
+    const btn = e.target.closest('.view-payments-btn');
+    const id = btn.dataset.id;
+    viewPayments(id);
+  }
+});
 
+async function viewPayments(requestId) {
+  const res = await apiFetch(`/requests/${requestId}/payment-submissions`);
+  if (res.ok) {
+    const submissions = await res.json();
+    const container = document.getElementById('paymentsList');
+    if (!submissions.length) {
+      container.innerHTML = '<div class="empty-state">No payment submissions yet.</div>';
+    } else {
+      let html = '';
+      submissions.forEach(s => {
+        const statusColor = s.status === 'pending' ? '#f5c400' : s.status === 'verified' ? '#22c55e' : '#ef4444';
+        const statusLabel = s.status.toUpperCase();
+        html += `
+          <div style="background:#1a1f2c; padding:14px; border-radius:10px; margin-bottom:10px; border-left:4px solid ${statusColor};">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+              <strong style="color:${statusColor};">${statusLabel}</strong>
+              <span style="color:#7e8ca3; font-size:12px;">${new Date(s.submitted_at).toLocaleString()}</span>
+            </div>
+            <div style="margin-top:6px; color:#94a3b8;">
+              ${s.transaction_id ? `<div>Transaction: <strong>${s.transaction_id}</strong></div>` : ''}
+              ${s.amount ? `<div>Amount: <strong>$${s.amount}</strong></div>` : ''}
+              ${s.proof_url ? `<div>Proof: <a href="${s.proof_url}" target="_blank" style="color:#f5c400;">View Screenshot</a></div>` : ''}
+              ${s.message ? `<div>Message: ${s.message}</div>` : ''}
+              ${s.verified_by_name ? `<div style="color:#7e8ca3; font-size:12px;">Verified by: ${s.verified_by_name}</div>` : ''}
+            </div>
+            ${s.status === 'pending' ? `
+              <div style="margin-top:10px; display:flex; gap:10px;">
+                <button class="btn btn-success btn-sm verify-payment-btn" data-id="${s.id}" data-action="verified"><i class="fas fa-check"></i> Verify</button>
+                <button class="btn btn-danger btn-sm verify-payment-btn" data-id="${s.id}" data-action="rejected"><i class="fas fa-times"></i> Reject</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+    document.getElementById('paymentsModal').style.display = 'flex';
+  } else {
+    alert('Failed to load payment submissions.');
+  }
+}
+
+// Event delegation for verify-payment-btn
+document.addEventListener('click', async function(e) {
+  if (e.target.closest('.verify-payment-btn')) {
+    const btn = e.target.closest('.verify-payment-btn');
+    const submissionId = btn.dataset.id;
+    const action = btn.dataset.action;
+    if (!confirm(`Are you sure you want to ${action} this payment?`)) return;
+    try {
+      const res = await apiFetch(`/payment-submissions/${submissionId}/verify`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: action })
+      });
+      if (res.ok) {
+        alert(`✅ Payment ${action}!`);
+        // Refresh the payments list
+        const modal = document.getElementById('paymentsModal');
+        const requestId = modal.dataset.requestId;
+        if (requestId) viewPayments(parseInt(requestId));
+        await loadRequests(); // refresh the main table
+      } else {
+        const err = await res.json();
+        alert('❌ ' + err.error);
+      }
+    } catch(e) { alert('❌ ' + e.message); }
+  }
+});
+
+// Store requestId when opening payments modal
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.view-payments-btn')) {
+    const btn = e.target.closest('.view-payments-btn');
+    document.getElementById('paymentsModal').dataset.requestId = btn.dataset.id;
+  }
+});
       const receiptCount = r.receipts ? r.receipts.length : 0;
       const receiptBtn = receiptCount > 0 ? `<button class="btn btn-sm btn-info view-receipts-btn" data-id="${r.id}"><i class="fas fa-receipt"></i> ${receiptCount}</button>` : '—';
 
