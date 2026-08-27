@@ -6,6 +6,7 @@
   <title>Requests – Torn Loss Manager</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <style>
+    /* ─── Same styles as before ─── */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
     body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
     .app { max-width: 1400px; width: 100%; }
@@ -73,6 +74,15 @@
     .filter-row label { font-size: 12px; color: #7e8ca3; display: flex; align-items: center; gap: 6px; }
     .filter-row input[type="checkbox"] { accent-color: #d91e36; width: 18px; height: 18px; }
 
+    /* Payment Modal */
+    .payment-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .payment-content { background: #141a24; border: 1px solid #1f2836; border-radius: 16px; max-width: 500px; width: 90%; padding: 30px; max-height: 90vh; overflow-y: auto; }
+    .payment-content .close { float: right; cursor: pointer; color: #d91e36; font-size: 24px; }
+    .payment-content h3 { margin-bottom: 16px; color: #f5c400; }
+    .payment-content label { display: block; color: #7e8ca3; font-size: 12px; text-transform: uppercase; margin-bottom: 4px; }
+    .payment-content input, .payment-content textarea { width: 100%; padding: 10px; background: #0f141e; border: 1px solid #1f2836; border-radius: 8px; color: #e2e8f0; margin-bottom: 12px; }
+    .payment-content input:focus, .payment-content textarea:focus { border-color: #d91e36; outline: none; }
+
     #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0d12; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #f5c400; z-index: 9999; flex-direction: column; gap: 20px; }
     #loading .spinner { width: 50px; height: 50px; border: 4px solid #1f2836; border-top-color: #d91e36; border-radius: 50%; animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -133,11 +143,30 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Buyer</th><th>Loser</th><th>Price</th><th>Remaining</th><th>Status</th><th>Hitter</th></tr></thead>
+            <thead><tr><th>Buyer</th><th>Loser</th><th>Price</th><th>Remaining</th><th>Status</th><th>Hitter</th><th style="text-align:right;">Actions</th></tr></thead>
             <tbody id="requestsTableBody"></tbody>
           </table>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Payment Modal -->
+  <div id="paymentModal" class="payment-modal">
+    <div class="payment-content">
+      <span class="close" onclick="document.getElementById('paymentModal').style.display='none'">&times;</span>
+      <h3><i class="fas fa-money-bill-wave"></i> Submit Payment Proof</h3>
+      <form id="paymentForm">
+        <label>Transaction ID</label>
+        <input type="text" id="txnId" placeholder="e.g., PayPal transaction ID" />
+        <label>Proof URL (screenshot)</label>
+        <input type="text" id="proofUrl" placeholder="https://imgur.com/..." />
+        <label>Amount Paid ($)</label>
+        <input type="number" id="amountPaid" placeholder="Total amount you paid" />
+        <label>Message (optional)</label>
+        <textarea id="paymentMessage" placeholder="Any additional info..."></textarea>
+        <button type="submit" class="btn btn-success" style="width:100%; justify-content:center; padding:12px;"><i class="fas fa-paper-plane"></i> Submit Payment Proof</button>
+      </form>
     </div>
   </div>
 </div>
@@ -148,7 +177,7 @@
 
   // ─── STATE ──────────────────────────────────────────────────────────
   let currentUser = null;
-  let requests = [];
+  let currentRequestId = null;
 
   // ─── DOM REFS ──────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -171,6 +200,12 @@
   const reqActive = $('reqActive');
   const reqDone = $('reqDone');
   const reqPaid = $('reqPaid');
+  const paymentModal = $('paymentModal');
+  const paymentForm = $('paymentForm');
+  const txnId = $('txnId');
+  const proofUrl = $('proofUrl');
+  const amountPaid = $('amountPaid');
+  const paymentMessage = $('paymentMessage');
 
   // ─── HELPERS ──────────────────────────────────────────────────────
   function getHeaders(apiKey) {
@@ -179,14 +214,14 @@
 
   async function apiFetch(endpoint, options = {}) {
     const apiKey = localStorage.getItem('tornApiKey');
-    if (!apiKey) throw new Error('No API key. Please go to Dashboard to connect.');
+    if (!apiKey) throw new Error('No API key');
     const res = await fetch(`${API}${endpoint}`, {
       ...options,
       headers: { ...getHeaders(apiKey), ...(options.headers || {}) }
     });
     if (res.status === 401) {
       localStorage.removeItem('tornApiKey');
-      throw new Error('Invalid API key. Please reconnect on Dashboard.');
+      throw new Error('Invalid API key');
     }
     return res;
   }
@@ -223,7 +258,7 @@
       }
     } catch (e) {
       console.error('Failed to load requests:', e);
-      requestsTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#ef4444;">${e.message}</td></tr>`;
+      requestsTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#ef4444;">${e.message}</td></tr>`;
     }
   }
 
@@ -238,13 +273,20 @@
       filtered = filtered.filter(r => r.status === status);
     }
     if (!filtered.length) {
-      requestsTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#4a5568;">No requests.</td></tr>`;
+      requestsTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#4a5568;">No requests.</td></tr>`;
       return;
     }
     let html = '';
     filtered.forEach(r => {
       const statusMap = { 'open': 'Open', 'active': 'Active', 'done': 'Done', 'paid': 'Paid', 'disputed': 'Disputed' };
       const clsMap = { 'open': 'status-open', 'active': 'status-active', 'done': 'status-done', 'paid': 'status-paid', 'disputed': 'status-disputed' };
+      const isBuyer = currentUser && r.buyer_id === currentUser.torn_id;
+
+      let actions = '';
+      if (r.status === 'done' && isBuyer) {
+        actions = `<button class="btn btn-primary btn-sm submit-payment-btn" data-id="${r.id}"><i class="fas fa-money-bill-wave"></i> Submit Payment</button>`;
+      }
+
       html += `<tr>
         <td><strong>${r.buyer}</strong></td>
         <td>${r.loser || '—'}</td>
@@ -252,9 +294,19 @@
         <td>${r.remaining} / ${r.total}</td>
         <td><span class="status-badge ${clsMap[r.status] || 'status-open'}">${statusMap[r.status] || 'Open'}</span></td>
         <td>${r.hitter_id || '—'}</td>
+        <td style="text-align:right; white-space:nowrap;">${actions}</td>
       </tr>`;
     });
     requestsTableBody.innerHTML = html;
+
+    // Attach events for payment submission
+    document.querySelectorAll('.submit-payment-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        currentRequestId = b.dataset.id;
+        paymentModal.style.display = 'flex';
+        paymentForm.reset();
+      });
+    });
   }
 
   function renderStats(requests) {
@@ -327,55 +379,54 @@
     }
   }
 
+  // ─── SUBMIT PAYMENT ────────────────────────────────────────────
+  paymentForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const transaction_id = txnId.value.trim();
+    const proof_url = proofUrl.value.trim();
+    const amount = parseInt(amountPaid.value);
+    const message = paymentMessage.value.trim();
+
+    if (!transaction_id && !proof_url) {
+      alert('Please provide at least a Transaction ID or Proof URL.');
+      return;
+    }
+    if (!amount || amount <= 0) {
+      alert('Please enter a valid amount.');
+      return;
+    }
+
+    try {
+      const res = await apiFetch(`/requests/${currentRequestId}/submit-payment`, {
+        method: 'POST',
+        body: JSON.stringify({ transaction_id, proof_url, amount, message })
+      });
+      if (res.ok) {
+        alert('✅ Payment proof submitted! The hitter will verify it.');
+        paymentModal.style.display = 'none';
+        paymentForm.reset();
+        await loadRequests();
+      } else {
+        const err = await res.json();
+        alert('❌ ' + err.error);
+      }
+    } catch(e) {
+      alert('❌ ' + e.message);
+    }
+  });
+
   // ─── EVENT LISTENERS ──────────────────────────────────────────
   logoutBtn.addEventListener('click', logout);
   verifyBuyerBtn.addEventListener('click', verifyBuyer);
   addRequestBtn.addEventListener('click', addRequest);
   showMyRequests.addEventListener('change', loadRequests);
   statusFilter.addEventListener('change', loadRequests);
-let currentRequestId = null;
 
-// Event delegation for submit-payment-btn
-document.addEventListener('click', function(e) {
-  if (e.target.closest('.submit-payment-btn')) {
-    const btn = e.target.closest('.submit-payment-btn');
-    currentRequestId = btn.dataset.id;
-    document.getElementById('paymentModal').style.display = 'flex';
-  }
-});
+  // ─── CLOSE PAYMENT MODAL ──────────────────────────────────────
+  paymentModal.addEventListener('click', e => {
+    if (e.target === paymentModal) paymentModal.style.display = 'none';
+  });
 
-document.getElementById('paymentForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const txnId = document.getElementById('txnId').value.trim();
-  const proofUrl = document.getElementById('proofUrl').value.trim();
-  const amount = parseInt(document.getElementById('amountPaid').value);
-  const message = document.getElementById('paymentMessage').value.trim();
-
-  if (!txnId && !proofUrl) {
-    alert('Please provide at least a Transaction ID or Proof URL.');
-    return;
-  }
-  if (!amount || amount <= 0) {
-    alert('Please enter a valid amount.');
-    return;
-  }
-
-  try {
-    const res = await apiFetch(`/requests/${currentRequestId}/submit-payment`, {
-      method: 'POST',
-      body: JSON.stringify({ transaction_id: txnId, proof_url: proofUrl, amount, message })
-    });
-    if (res.ok) {
-      alert('✅ Payment proof submitted! The hitter will verify it.');
-      document.getElementById('paymentModal').style.display = 'none';
-      document.getElementById('paymentForm').reset();
-      await loadRequests(); // refresh the table
-    } else {
-      const err = await res.json();
-      alert('❌ ' + err.error);
-    }
-  } catch(e) { alert('❌ ' + e.message); }
-});
   // ─── INIT ──────────────────────────────────────────────────────
   (async function init() {
     const savedKey = localStorage.getItem('tornApiKey');
@@ -386,7 +437,7 @@ document.getElementById('paymentForm').addEventListener('submit', async (e) => {
     } else {
       loading.style.display = 'none';
       mainApp.style.display = 'block';
-      requestsTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:#f5c400;"><i class="fas fa-key"></i> No API key found. Please go to the Dashboard to connect.</td></tr>`;
+      requestsTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:#f5c400;"><i class="fas fa-key"></i> No API key found. Please go to the Dashboard to connect.</td></tr>`;
     }
     setTimeout(() => { loading.style.display = 'none'; }, 500);
   })();
