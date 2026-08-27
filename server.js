@@ -267,7 +267,7 @@ app.get('/api/bars', authenticateApiKey, async (req, res) => {
 });
 
 // ─── REQUESTS ──────────────────────────────────────────────────────
-app.get('/api/requests', authenticate, async (req, res) => {
+app.get('/api/requests', authenticateApiKey, async (req, res) => {
   let query = 'SELECT * FROM requests';
   const params = [];
   if (req.user.role !== 'admin') {
@@ -361,7 +361,7 @@ app.delete('/api/requests/:id', authenticateApiKey, async (req, res) => {
 });
 
 // ─── RECEIPTS ──────────────────────────────────────────────────────
-app.get('/api/receipts', authenticate, async (req, res) => {
+app.get('/api/receipts', authenticateApiKey, async (req, res) => {
   let query = `
     SELECT r.*, req.buyer, req.loser FROM receipts r
     JOIN requests req ON r.request_id = req.id
@@ -382,7 +382,7 @@ app.get('/api/requests/:id/receipts', authenticateApiKey, async (req, res) => {
 });
 
 // ─── HIT LOGS ──────────────────────────────────────────────────────
-app.get('/api/attack-logs', authenticate, async (req, res) => {
+app.get('/api/attack-logs', authenticateApikey, async (req, res) => {
   let query = 'SELECT * FROM attack_logs';
   const params = [];
   if (req.user.role !== 'admin') {
