@@ -12,23 +12,7 @@ const NodeCache = require('node-cache');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'torn-loss-manager-secret';
-// ─── READ URL PARAMETERS ──────────────────────────────────────────
-function getUrlParam(name) {
-  const params = new URLSearchParams(window.location.search);
-  return params.get(name) || '';
-}
 
-// After loading the page, auto‑fill fields
-const targetParam = getUrlParam('target');
-const loserParam = getUrlParam('loser');
-if (targetParam) {
-  document.getElementById('buyerName').value = targetParam;
-  // Optionally verify the buyer automatically
-  setTimeout(verifyBuyer, 300);
-}
-if (loserParam) {
-  document.getElementById('loserId').value = loserParam;
-}
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
