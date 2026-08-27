@@ -222,7 +222,7 @@ function requireAdmin(req, res, next) {
 // ─── ROUTES ─────────────────────────────────────────────────────────
 
 // Admin login
-app.post('/auth/login', async (req, res) => {
+app.post('api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (username === 'nightmare' && password === 'qwerty') {
     const admin = await get('SELECT * FROM users WHERE torn_id = 0');
