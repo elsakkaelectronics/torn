@@ -6,6 +6,7 @@
   <title>Admin – Torn Loss Manager</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
   <style>
+    /* ─── Reset & Base ─── */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
     body { background: #0b0d12; color: #e2e8f0; min-height: 100vh; padding: 20px; display: flex; justify-content: center; }
     .app { max-width: 1400px; width: 100%; }
@@ -34,9 +35,13 @@
     .btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-primary { background: #d91e36; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #f03a52; }
     .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #22c55e; }
     .btn-warning { background: #b45309; color: #fff; }
+    .btn-warning:hover:not(:disabled) { background: #d97706; }
     .btn-danger { background: #991b1b; color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #dc2626; }
     .btn-sm { padding: 4px 12px; font-size: 12px; border-radius: 8px; }
     .btn-xs { padding: 2px 8px; font-size: 10px; border-radius: 6px; }
 
@@ -60,33 +65,49 @@
     .receipt-item { background: #1a1f2c; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; border-left: 3px solid #f5c400; font-size: 13px; }
     .receipt-item .time { color: #7e8ca3; font-size: 11px; }
 
-    .auth-container { max-width: 400px; margin: 60px auto; background: #141a24; padding: 30px; border-radius: 16px; border: 1px solid #1f2836; }
-    .auth-container h2 { margin-bottom: 20px; color: #f5c400; }
-    .auth-container .form-group { margin-bottom: 16px; }
-    .auth-container .btn { width: 100%; justify-content: center; }
-    .auth-container .switch { color: #7e8ca3; font-size: 13px; margin-top: 12px; text-align: center; }
-    .auth-container .switch a { color: #d91e36; cursor: pointer; }
+    /* ─── Admin Login ─── */
+    .login-container { max-width: 400px; margin: 60px auto; background: #141a24; padding: 30px; border-radius: 16px; border: 1px solid #1f2836; }
+    .login-container h2 { margin-bottom: 20px; color: #f5c400; text-align: center; }
+    .login-container .form-group { margin-bottom: 16px; }
+    .login-container .form-group label { display: block; font-size: 12px; font-weight: 600; color: #7e8ca3; text-transform: uppercase; margin-bottom: 4px; }
+    .login-container .form-group input { width: 100%; padding: 10px 14px; background: #0f141e; border: 1px solid #1f2836; border-radius: 10px; color: #e2e8f0; font-size: 14px; outline: none; }
+    .login-container .form-group input:focus { border-color: #d91e36; }
+    .login-container .btn { width: 100%; justify-content: center; padding: 12px; font-size: 16px; }
+    .login-container .error { color: #ef4444; margin-top: 12px; text-align: center; }
+
+    #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0b0d12; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #f5c400; z-index: 9999; flex-direction: column; gap: 20px; }
+    #loading .spinner { width: 50px; height: 50px; border: 4px solid #1f2836; border-top-color: #d91e36; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
+<div id="loading"><div class="spinner"></div><span>Loading...</span></div>
+
 <div class="app" id="app">
-  <div id="authContainer" style="display:none;">
-    <div class="auth-container">
-      <h2 id="authTitle">Login</h2>
-      <div class="form-group"><label>Username</label><input type="text" id="authUsername" /></div>
-      <div class="form-group"><label>Password</label><input type="password" id="authPassword" /></div>
-      <div class="form-group" id="authTornIdGroup" style="display:none;"><label>Torn ID</label><input type="text" id="authTornId" /></div>
-      <button class="btn btn-primary" id="authSubmitBtn">Login</button>
-      <div class="switch" id="authSwitch">Don't have an account? <a id="authToggle">Register</a></div>
-      <div id="authMessage" style="color:#ef4444; margin-top:12px; text-align:center;"></div>
+
+  <!-- Admin Login -->
+  <div id="loginContainer" style="display:none;">
+    <div class="login-container">
+      <h2><i class="fas fa-user-cog"></i> Admin Login</h2>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="adminUsername" placeholder="Enter admin username" value="nightmare" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="adminPassword" placeholder="Enter admin password" value="qwerty" />
+      </div>
+      <button class="btn btn-primary" id="adminLoginBtn"><i class="fas fa-sign-in-alt"></i> Login</button>
+      <div id="loginError" class="error"></div>
     </div>
   </div>
 
-  <div id="mainApp" style="display:none;">
+  <!-- Admin Panel -->
+  <div id="adminPanel" style="display:none;">
     <header class="header">
       <div class="logo"><i class="fas fa-skull-crossbones"></i><span>TORN LOSS MANAGER</span></div>
       <div style="display:flex; gap:20px; align-items:center;">
-        <span style="color:#7e8ca3; font-size:13px;">Welcome, <span id="userNameDisplay">User</span></span>
+        <span style="color:#7e8ca3; font-size:13px;">Admin: <span id="adminNameDisplay">Admin</span></span>
         <button class="btn btn-sm btn-danger" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
         <div class="nav-links">
           <a href="dashboard.html"><i class="fas fa-chart-pie"></i> Dashboard</a>
@@ -117,69 +138,109 @@
 </div>
 
 <script>
-  // ─── Same auth and API setup ────────────────────────────────────
-  const API = 'https://tornlossmanagment.up.railway.app/api';
-  let token = localStorage.getItem('tornToken');
-  let currentUser = null;
-  function setAuthToken(t) { token = t; if (t) localStorage.setItem('tornToken', t); else localStorage.removeItem('tornToken'); }
-  function getHeaders() { return { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' }; }
+  // ─── API BASE ──────────────────────────────────────────────────────
+  const API = '/api';
+
+  // ─── STATE ──────────────────────────────────────────────────────────
+  let adminToken = null;
+  let adminUser = null;
+
+  // ─── DOM REFS ──────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const loading = $('loading');
+  const loginContainer = $('loginContainer');
+  const adminPanel = $('adminPanel');
+  const adminUsername = $('adminUsername');
+  const adminPassword = $('adminPassword');
+  const adminLoginBtn = $('adminLoginBtn');
+  const loginError = $('loginError');
+  const adminNameDisplay = $('adminNameDisplay');
+  const logoutBtn = $('logoutBtn');
+  const adminRequestsTableWrap = $('adminRequestsTableWrap');
+  const adminReceiptsList = $('adminReceiptsList');
+  const adminLogsList = $('adminLogsList');
+
+  // ─── HELPERS ──────────────────────────────────────────────────────
+  function getHeaders() {
+    if (adminToken) {
+      return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` };
+    }
+    return { 'Content-Type': 'application/json' };
+  }
+
   async function apiFetch(endpoint, options = {}) {
-    const res = await fetch(`${API}${endpoint}`, { ...options, headers: { ...getHeaders(), ...(options.headers || {}) } });
-    if (res.status === 401) { setAuthToken(null); showAuth(); throw new Error('Session expired'); }
+    const res = await fetch(`${API}${endpoint}`, {
+      ...options,
+      headers: { ...getHeaders(), ...(options.headers || {}) }
+    });
+    if (res.status === 401) {
+      // Token expired or invalid
+      adminToken = null;
+      localStorage.removeItem('adminToken');
+      showLogin();
+      throw new Error('Session expired');
+    }
     return res;
   }
 
-  const $ = id => document.getElementById(id);
-  const authContainer = $('authContainer');
-  const mainApp = $('mainApp');
-  const authTitle = $('authTitle');
-  const authUsername = $('authUsername');
-  const authPassword = $('authPassword');
-  const authTornId = $('authTornId');
-  const authTornIdGroup = $('authTornIdGroup');
-  const authSubmitBtn = $('authSubmitBtn');
-  const authToggle = $('authToggle');
-  const authMessage = $('authMessage');
-  const userNameDisplay = $('userNameDisplay');
-  const logoutBtn = $('logoutBtn');
+  // ─── AUTH ──────────────────────────────────────────────────────────
+  async function adminLogin() {
+    const username = adminUsername.value.trim();
+    const password = adminPassword.value.trim();
+    if (!username || !password) {
+      loginError.textContent = 'Username and password required';
+      return;
+    }
+    loginError.textContent = '';
+    adminLoginBtn.disabled = true;
+    adminLoginBtn.textContent = '⏳ Logging in...';
 
-  let isLogin = true;
-  function showAuth() { authContainer.style.display = 'block'; mainApp.style.display = 'none'; }
-  function showMainApp() { authContainer.style.display = 'none'; mainApp.style.display = 'block'; loadAdmin(); }
-
-  authToggle.addEventListener('click', () => {
-    isLogin = !isLogin;
-    authTitle.textContent = isLogin ? 'Login' : 'Register';
-    authSubmitBtn.textContent = isLogin ? 'Login' : 'Register';
-    authToggle.textContent = isLogin ? 'Register' : 'Login';
-    authTornIdGroup.style.display = isLogin ? 'none' : 'block';
-    authMessage.textContent = '';
-  });
-
-  authSubmitBtn.addEventListener('click', async () => {
-    const username = authUsername.value.trim();
-    const password = authPassword.value.trim();
-    const tornId = authTornId.value.trim();
-    if (!username || !password) { authMessage.textContent = 'Username and password required'; return; }
     try {
-      const endpoint = isLogin ? '/auth/login' : '/auth/register';
-      const body = isLogin ? { username, password } : { username, password, torn_id: tornId || undefined };
-      const res = await fetch(`${API}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Auth failed');
-      setAuthToken(data.token);
-      currentUser = data.user;
-      userNameDisplay.textContent = currentUser.username;
-      showMainApp();
-    } catch (e) { authMessage.textContent = 'Error: ' + e.message; }
-  });
+      if (!res.ok) throw new Error(data.error || 'Login failed');
 
-  logoutBtn.addEventListener('click', () => { setAuthToken(null); currentUser = null; showAuth(); });
+      adminToken = data.token;
+      adminUser = data.user;
+      localStorage.setItem('adminToken', adminToken);
+      adminNameDisplay.textContent = adminUser.username || 'Admin';
+      showAdminPanel();
+      await loadAdminData();
+    } catch (e) {
+      loginError.textContent = e.message;
+    } finally {
+      adminLoginBtn.disabled = false;
+      adminLoginBtn.textContent = 'Login';
+    }
+  }
 
-  // ─── ADMIN RENDER ──────────────────────────────────────────────
-  async function loadAdmin() {
+  function logout() {
+    adminToken = null;
+    adminUser = null;
+    localStorage.removeItem('adminToken');
+    showLogin();
+  }
+
+  function showLogin() {
+    loginContainer.style.display = 'block';
+    adminPanel.style.display = 'none';
+    loading.style.display = 'none';
+  }
+
+  function showAdminPanel() {
+    loginContainer.style.display = 'none';
+    adminPanel.style.display = 'block';
+    loading.style.display = 'none';
+  }
+
+  // ─── LOAD ADMIN DATA ─────────────────────────────────────────────
+  async function loadAdminData() {
     try {
-      // Load all requests
+      // Load all requests (admin can see all)
       const reqRes = await apiFetch('/requests');
       if (reqRes.ok) {
         const requests = await reqRes.json();
@@ -198,13 +259,13 @@
         renderAdminLogs(logs);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Error loading admin data:', e);
     }
   }
 
   function renderAdminRequests(requests) {
     if (!requests.length) {
-      $('adminRequestsTableWrap').innerHTML = '<div class="empty-state"><i class="fas fa-list"></i> No requests.</div>';
+      adminRequestsTableWrap.innerHTML = '<div class="empty-state"><i class="fas fa-list"></i> No requests.</div>';
       return;
     }
     let html = `<div class="table-wrap"><table><thead><tr><th>ID</th><th>Buyer</th><th>Loser</th><th>Price</th><th>Remaining</th><th>Status</th><th>Hitter</th><th>Paid</th><th>Reported</th><th style="text-align:right;">Actions</th></tr></thead><tbody>`;
@@ -229,7 +290,7 @@
       </tr>`;
     });
     html += `</tbody></table></div>`;
-    $('adminRequestsTableWrap').innerHTML = html;
+    adminRequestsTableWrap.innerHTML = html;
 
     // Attach admin events
     document.querySelectorAll('.toggle-paid').forEach(b => b.addEventListener('click', () => togglePaid(parseInt(b.dataset.id))));
@@ -239,19 +300,19 @@
 
   function renderAdminReceipts(receipts) {
     if (!receipts.length) {
-      $('adminReceiptsList').innerHTML = '<div class="empty-state"><i class="fas fa-receipt"></i> No receipts.</div>';
+      adminReceiptsList.innerHTML = '<div class="empty-state"><i class="fas fa-receipt"></i> No receipts.</div>';
       return;
     }
     let html = '';
     receipts.slice(0, 20).forEach(r => {
       html += `<div class="receipt-item"><strong>Request #${r.request_id}</strong> (${r.buyer}→${r.loser}): ${r.message}<br><span class="time">${new Date(r.timestamp).toLocaleString()}</span></div>`;
     });
-    $('adminReceiptsList').innerHTML = html;
+    adminReceiptsList.innerHTML = html;
   }
 
   function renderAdminLogs(logs) {
     if (!logs.length) {
-      $('adminLogsList').innerHTML = '<div class="empty-state"><i class="fas fa-database"></i> No logs.</div>';
+      adminLogsList.innerHTML = '<div class="empty-state"><i class="fas fa-database"></i> No logs.</div>';
       return;
     }
     let html = `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Title</th><th>Details</th></tr></thead><tbody>`;
@@ -266,38 +327,52 @@
       html += `<tr><td>${time}</td><td><strong>${title}</strong></td><td>${detail}</td></tr>`;
     });
     html += `</tbody></table></div>`;
-    $('adminLogsList').innerHTML = html;
+    adminLogsList.innerHTML = html;
   }
 
   // ─── ADMIN ACTIONS ──────────────────────────────────────────────
   async function togglePaid(id) {
     const res = await apiFetch(`/admin/requests/${id}/toggle-paid`, { method: 'PUT' });
-    if (res.ok) { await loadAdmin(); }
+    if (res.ok) { await loadAdminData(); }
   }
   async function toggleReported(id) {
     const res = await apiFetch(`/admin/requests/${id}/toggle-reported`, { method: 'PUT' });
-    if (res.ok) { await loadAdmin(); }
+    if (res.ok) { await loadAdminData(); }
   }
   async function setDisputed(id) {
     const res = await apiFetch(`/admin/requests/${id}/dispute`, { method: 'PUT' });
-    if (res.ok) { await loadAdmin(); }
+    if (res.ok) { await loadAdminData(); }
   }
+
+  // ─── EVENTS ────────────────────────────────────────────────────
+  adminLoginBtn.addEventListener('click', adminLogin);
+  adminUsername.addEventListener('keypress', e => { if (e.key === 'Enter') adminLogin(); });
+  adminPassword.addEventListener('keypress', e => { if (e.key === 'Enter') adminLogin(); });
+  logoutBtn.addEventListener('click', logout);
 
   // ─── INIT ──────────────────────────────────────────────────────
   (async function init() {
-    if (token) {
+    const savedToken = localStorage.getItem('adminToken');
+    if (savedToken) {
+      adminToken = savedToken;
       try {
-        const res = await apiFetch('/auth/me');
+        // Test token by fetching requests
+        const res = await apiFetch('/requests');
         if (res.ok) {
-          const data = await res.json();
-          currentUser = data.user;
-          userNameDisplay.textContent = currentUser.username;
-          showMainApp();
+          adminUser = { username: 'Admin' };
+          adminNameDisplay.textContent = 'Admin';
+          showAdminPanel();
+          await loadAdminData();
           return;
         }
-      } catch (e) {}
+      } catch (e) {
+        // Token invalid, clear it
+        localStorage.removeItem('adminToken');
+        adminToken = null;
+      }
     }
-    showAuth();
+    showLogin();
+    setTimeout(() => { loading.style.display = 'none'; }, 500);
   })();
 </script>
 </body>
